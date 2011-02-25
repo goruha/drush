@@ -1,4 +1,3 @@
-; $Id$
 name = Drush SQL commands
 description = Provides several tools for database query and management
 package = Drush

@@ -1,4 +1,3 @@
-; $Id$
 name = Drush package manager
 description = Allows you to install and update modules from the command line.
 package = Drush
