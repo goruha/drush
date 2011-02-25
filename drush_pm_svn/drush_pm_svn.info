@@ -1,4 +1,3 @@
-; $Id$
 name = drush Package Manager SVN Support
 description = Allows drush to manage a site sandbox using SVN.
 package = drush
