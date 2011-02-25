@@ -1,4 +1,3 @@
-// $Id$
 
 This is a listing of known bugs, features that mostly work but are still
 somewhat in progress, features that are being considered or planned for
