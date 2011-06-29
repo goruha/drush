@@ -63,7 +63,7 @@ function docs_drush_command() {
     'topic' => TRUE,
     'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
     'callback' => 'drush_print_file',
-    'callback arguments' => array(DRUSH_BASE_PATH . '/examples/example.bashrc'),
+    'callback arguments' => array($docs_dir . '/examples/example.bashrc'),
   );
   $items['docs-ini-files'] = array(
     'description' => 'Configuring php.ini or drush.ini for use with drush.',
@@ -87,7 +87,7 @@ function docs_drush_command() {
     'topic' => TRUE,
     'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
     'callback' => 'drush_print_file',
-    'callback arguments' => array(DRUSH_BASE_PATH . '/docs/cron.html'),
+    'callback arguments' => array($docs_dir . '/docs/cron.html'),
   );
   $items['docs-scripts'] = array(
     'description' => 'Overview on how to write drush shell scripts.',
@@ -176,7 +176,7 @@ Drush error codes are alphanumeric constants that represent an unrecoverable err
 
 In general, any drush command that calls drush_set_error is expected to also return FALSE as its function result.  The drush_set_error function returns FALSE to make it easy to exit with an error code.  Error codes are returned as part of the drush backend invoke process, which is used by drush API functions such as drush_invoke_process.  An example of how to test for a specific error code is shown below:
 
-  \$result = drush_invoke_process('some-command');
+  \$result = drush_invoke_process('@self', 'some-command');
   if (array_key_exists('DRUSH_ERROR_CODE', \$result['error_log'])) {
     // handle ocurrances of DRUSH_ERROR_CODE here
   }

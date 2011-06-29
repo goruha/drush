@@ -244,7 +244,7 @@ function drush_self_update($explicit = TRUE, $update = TRUE) {
       $backup_dir = drush_preflight_backup_dir('drush');
       if(drush_confirm(dt('A newer version of drush, !version, is available.  Would you like to back up your current drush, version !currentversion, to !backup and replace it with the newer release?', array('!version' => $newer_version, '!currentversion' => DRUSH_VERSION, '!backup' => $backup_dir)))) {
         // pm-download will select the most recent stable release, which is what we want.
-        return (drush_invoke_process_args("pm-download", array("drush"), array("destination" => DRUSH_BASE_PATH, "backup-location" => $backup_dir, "dev" => $is_dev)) !== FALSE);
+        return (drush_invoke_process('@self', "pm-download", array("drush"), array("destination" => DRUSH_BASE_PATH, "backup-location" => $backup_dir, "dev" => $is_dev)) !== FALSE);
       }
     }
     else {
@@ -342,18 +342,19 @@ function drush_get_global_options($brief = FALSE) {
   $options['ia']                 = dt("Force interactive mode for commands run on multiple targets (e.g. `drush @site1,@site2 cc --ia`).");
 
   if (!$brief) {
-    $options['quiet']            = array('short-form' => 'q', 'description' => dt('Suppress non-error messages.'));
-    $options['include']          = array('short-form' => 'i', 'description' => dt("A list of additional directory paths to search for drush commands."));
-    $options['config']           = array('short-form' => 'c', 'description' => dt("Specify an additional config file to load. See example.drushrc.php."));
-    $options['user']             = array('short-form' => 'u', 'description' => dt("Specify a Drupal user to login with. May be a name or a number."));
-    $options['backend']          = array('short-form' => 'b', 'description' => dt("Hide all output and return structured data (internal use only)."));
-    $options['choice']           = dt("Provide an answer to a multiple-choice prompt.");
-    $options['lib']              = dt("Location of directory where 3rd party libraries are available, or where Drush can downloaded them to if they are not found.");
-    $options['no-label']         = dt("Remove the site label that drush includes in multi-site command output(e.g. `drush @site1,@site2 status`).");
-    $options['nocolor']          = dt("Suppress color highlighting on log messages.");
-    $options['show-passwords']   = dt("Show database passwords in commands that display connection information.");
-    $options['show-invoke']      = dt("Show all function names which could have been called for the current command. See drush_invoke().");
-    $options['watchdog']         = dt("Control logging of Drupal's watchdog() to drush log. Recognized values are 'log', 'print', 'disabled'. Defaults to log. 'print' shows calls to admin but does not add them to the log.");
+    $options['quiet']               = array('short-form' => 'q', 'description' => dt('Suppress non-error messages.'));
+    $options['include']             = array('short-form' => 'i', 'description' => dt("A list of additional directory paths to search for drush commands."));
+    $options['config']              = array('short-form' => 'c', 'description' => dt("Specify an additional config file to load. See example.drushrc.php."));
+    $options['user']                = array('short-form' => 'u', 'description' => dt("Specify a Drupal user to login with. May be a name or a number."));
+    $options['backend']             = array('short-form' => 'b', 'description' => dt("Hide all output and return structured data (internal use only)."));
+    $options['choice']              = dt("Provide an answer to a multiple-choice prompt.");
+    $options['no-label']            = dt("Remove the site label that drush includes in multi-site command output(e.g. `drush @site1,@site2 status`).");
+    $options['nocolor']             = dt("Suppress color highlighting on log messages.");
+    $options['show-passwords']      = dt("Show database passwords in commands that display connection information.");
+    $options['show-invoke']         = dt("Show all function names which could have been called for the current command. See drush_invoke().");
+    $options['watchdog']            = dt("Control logging of Drupal's watchdog() to drush log. Recognized values are 'log', 'print', 'disabled'. Defaults to log. 'print' shows calls to admin but does not add them to the log.");
+    $options['cache-default-class'] = dt("A cache backend class that implements DrushCacheInterface.");
+    $options['cache-class-<bin>']   = dt("A cache backend class that implements DrushCacheInterface to use for a specific cache bin.");
   }
   return $options;
 }
@@ -733,7 +734,7 @@ function drush_download_file($url, $destination = FALSE, $cache_duration = 0) {
       return $cache_file;
     }
     else {
-      if (_drush_download_file($url, $cache_file)) {
+      if (_drush_download_file($url, $cache_file, TRUE)) {
         // Cache was set just by downloading file to right location.
         return $cache_file;
       }
@@ -763,12 +764,13 @@ function drush_download_file($url, $destination = FALSE, $cache_duration = 0) {
  *   Optional, if omitted the filename will be extracted from the url and the
  *   file downloaded to the current working directory (Drupal root if
  *   bootstrapped).
- *
+ * @param boolean $overwrite
+ *   Overwrite any file thats already at the destination.
  * @return string
  *   The path to the downloaded file, or FALSE if the file could not be
  *   downloaded.
  */
-function _drush_download_file($url, $destination = FALSE) {
+function _drush_download_file($url, $destination = FALSE, $overwrite = TRUE) {
   if (!$destination) {
     $destination = getcwd() . '/' . basename($url);
   }
@@ -786,7 +788,7 @@ function _drush_download_file($url, $destination = FALSE) {
     return FALSE;
   }
 
-  drush_move_dir($destination_tmp, $destination);
+  drush_move_dir($destination_tmp, $destination, $overwrite);
   return $destination;
 }
 
@@ -798,33 +800,59 @@ function _drush_download_file($url, $destination = FALSE) {
  * @param string $destination
  *   The destination directory the tarball should be extracted into.
  *   Optional, if ommitted the tarball directory will be used as destination.
+ * @param boolean $listing
+ *   If TRUE, a listing of the tar contents will be returned on success.
  *
  * @return string
- *   A file listing of the tarball if the extraction reported success,
- *   otherwise FALSE.
+ *   TRUE on success, FALSE on fail. If $listing is TRUE, a file listing of the
+ *   tarball is returned if the extraction reported success, instead of TRUE.
  */
-function drush_tarball_extract($path, $destination = FALSE) {
-  // Chdir to the download location.
+function drush_tarball_extract($path, $destination = FALSE, $listing = FALSE) {
+  if (!file_exists($path)) {
+    return drush_set_error('TARBALL_EXTRACT_NOT_FOUND', dt('Tarball !path could not be found.', array('!path' => $path)));
+  }
   $olddir = getcwd();
   if (!$destination) {
     $destination = dirname($path);
   }
-  drush_op('chdir', $destination);
-  $tarpath = basename($path, '.tar.gz');
-  $tarpath = basename($tarpath, '.tgz');
-  $tarpath = $destination . '/' . $tarpath . '.tar';
-  // Ensure the intermediate file is deleted.
-  drush_register_file_for_deletion($tarpath);
-  // Decompress and untar in two steps as tar -xzf does not work on windows.
-  $result = FALSE;
-  if (drush_shell_exec("gzip --decompress --stdout %s > %s", $path, $tarpath) && drush_shell_exec("tar -xf %s", $tarpath)) {
-    // We use a separate tar -tf instead of -xvf above because
-    // the output is not the same in Mac.
-    drush_shell_exec("tar -tf %s", $tarpath);
-    $result = drush_shell_exec_output();
+  if (!is_writeable($destination)) {
+    return drush_set_error('TARBALL_EXTRACT_DESTINATION', dt('Extracting !path failed, as the destination directory !dest was not found or could not be written to.', array('!path' => $path, '!dest' => $dest)));
   }
-  drush_op('chdir', $olddir);
-  return $result;
+  // If we are not on Windows, then try to do "tar" in a single operation.
+  if ((!drush_is_windows()) && (drush_shell_cd_and_exec(dirname($path), "tar -C %s -xzf %s", $destination, basename($path)))) {
+    if ($listing) {
+      // We use a separate tar -tf instead of -xvf above because
+      // the output is not the same in Mac.
+      drush_shell_cd_and_exec(dirname($path), "tar -tf %s", basename($path));
+      return drush_shell_exec_output();
+    }
+    return TRUE;
+  }
+  // If we could not get the single-op tar to work, do it in three steps.
+  // Copy the source tarball to the destination directory.  Rename to a temp name in case the destination directory == dirname($path)
+  $paths_basename = basename(basename($path, '.tar.gz'), '.tgz');
+  $tarball = drush_tempnam($paths_basename, $destination) . ".tar.gz";
+  drush_register_file_for_deletion($tarball);
+  drush_copy_dir($path, $tarball);
+  $unzipped = $destination . '/' . basename($tarball, ".tar.gz") . ".tar";
+  // We used to use gzip --decompress in --stdout > out, but the output redirection sometimes failed on Windows for some binary output
+  drush_shell_cd_and_exec(dirname($tarball), "gzip --decompress %s", $tarball);
+  if (file_exists($unzipped)) {
+    drush_register_file_for_deletion($unzipped);
+    if (drush_shell_cd_and_exec(dirname($unzipped), "tar -xf %s", basename($unzipped))) {
+      if ($listing) {
+        // We use a separate tar -tf instead of -xf above because
+        // the output is not the same in Mac.
+        drush_shell_cd_and_exec(dirname($unzipped), "tar -tf %s", basename($unzipped));
+        return drush_shell_exec_output();
+      }
+      return TRUE;
+    }
+    return drush_set_error('TARBALL_EXTRACT_TAR_FAIL', dt('Extracting !path using the tar command failed.', array('!path' => $path)));
+  }
+  else {
+    return drush_set_error('TARBALL_EXTRACT_GZIP_FAIL', dt('Uncompressing !path using  the gzip command failed.', array('!path' => $path)));
+  }
 }
 
 /**
@@ -841,7 +869,7 @@ function drush_tarball_extract($path, $destination = FALSE) {
 function drush_lib_fetch($url) {
   $lib = drush_get_option('lib', DRUSH_BASE_PATH . '/lib');
   if (!is_writable($lib)) {
-    return drush_bootstrap_error('DRUSH_LIB_UNWRITABLE', dt("Drush needs to download a library from !url in order to function, and the attempt to download this file automatically failed because you do not have permission to write to the library directory !path. To continue you will need to manually download the package from !url, extract it, and copy the directory into your !path directory.", array('!path' => $lib, '!url' => $url)));
+    return drush_set_error('DRUSH_LIB_UNWRITABLE', dt("Drush needs to download a library from !url in order to function, and the attempt to download this file automatically failed because you do not have permission to write to the library directory !path. To continue you will need to manually download the package from !url, extract it, and copy the directory into your !path directory.", array('!path' => $lib, '!url' => $url)));
   }
 
   // We use an arbitary filename, since some sources (e.g. github) do not
@@ -991,7 +1019,7 @@ function drush_do_multiple_command($command, $source_record, $destination_record
       $target_spec = drush_sitealias_alias_record_to_spec($one_target);
 
       drush_log(dt('Begin do_multiple !command via backend invoke', array('!command' => $command)));
-      $values = drush_invoke_process_args($command, array($source_spec . $source_path, $target_spec . $destination_path), $data);
+      $values = drush_invoke_process('@self', $command, array($source_spec . $source_path, $target_spec . $destination_path), $data);
       drush_log(dt('Backend invoke is complete'));
     }
   }
@@ -1003,7 +1031,7 @@ function drush_do_multiple_command($command, $source_record, $destination_record
  * Run a command on the site specified by the provided command record.
  *
  * The standard function that provides this service is called
- * drush_invoke_sitealias_args.  Please call the standard function
+ * drush_invoke_process.  Please call the standard function
  * unless you need to set $integrate = TRUE.
  *
  * @param backend_options
@@ -1052,7 +1080,7 @@ function drush_do_command_redispatch($command, $args = array(), $remote_host = N
 
   // Run the command in a new process.
   drush_log(dt('Begin redispatch via invoke process'));
-  $values = drush_invoke_process_args($command, $args, $command_options, $backend_options);
+  $values = drush_invoke_process('@self', $command, $args, $command_options, $backend_options);
   drush_log(dt('Invoke process is complete'));
 
   return $values;

@@ -218,7 +218,7 @@ function drush_move_dir($src, $dest, $overwrite = FALSE) {
  * @see http://theserverpages.com/php/manual/en/function.mkdir.php#50383
  */
 function drush_mkdir($path) {
-  return is_dir($path) || (drush_mkdir(dirname($path)) && drush_shell_exec('mkdir %s', $path));
+  return is_dir($path) || (drush_mkdir(dirname($path)) && mkdir($path));
 }
 
 /**
@@ -417,6 +417,7 @@ function drush_prepare_backup_dir($subdir = NULL) {
  */
 function drush_file_not_empty($file_to_test) {
   if (file_exists($file_to_test)) {
+    clearstatcache();
     $stat = stat($file_to_test);
     if ($stat['size'] > 0) {
       return TRUE;
