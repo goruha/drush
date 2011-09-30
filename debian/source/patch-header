@@ -1,0 +1,11 @@
+Description: include a index.html file
+ upstream doesn't provide an index.html file for all the *.html
+ documentation provided.
+ .
+ they currently do not feel confortable maintaining such a file so we
+ maintain our own.
+
+Author: Antoine Beaupré <anarcat@koumbit.org>
+Origin: vendor
+Forwarded: no
+Last-Update: 2011-09-30
