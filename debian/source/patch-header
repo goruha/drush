@@ -4,6 +4,18 @@ Description: include a index.html file
  .
  they currently do not feel confortable maintaining such a file so we
  maintain our own.
+ .
+ some other changes may creep up in the debian package that I forget
+ to document here. a good way to track those changes is to inspect the
+ git history, using the following commands:
+ .
+ git clone http://git.drupal.org/project/drush.git
+ cd drush
+ git checkout debian
+ git diff --stat origin/upstream # identify the modified files
+ git log <file> # show the commit logs on that file
+ git blame <file> # if the commit can't be found, locate the modified lines from the diff above...
+ git show <commit> # ... and display the relevant commit
 
 Author: Antoine Beaupré <anarcat@koumbit.org>
 Origin: vendor
