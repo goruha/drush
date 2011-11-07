@@ -1,3 +1,11 @@
+drush (4.5-3) unstable; urgency=low
+
+  * fix watchfile
+  * change my email address
+  * remove DM field as I am now a DD
+
+ -- Antoine Beaupré <anarcat@debian.org>  Sun, 06 Nov 2011 22:20:28 -0500
+
 drush (4.5-2) unstable; urgency=low
 
   * fetch the table.inc file during the build instead of keeping a copy in

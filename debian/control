@@ -1,7 +1,7 @@
 Source: drush
 Section: php
 Priority: optional
-Maintainer: Antoine Beaupré <anarcat@koumbit.org>
+Maintainer: Antoine Beaupré <anarcat@debian.org>
 DM-Upload-Allowed: yes
 Build-Depends: debhelper (>= 7.0.50~), php5-cli (>= 5.2)
 Standards-Version: 3.9.2
