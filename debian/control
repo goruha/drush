@@ -2,7 +2,7 @@ Source: drush
 Section: php
 Priority: optional
 Maintainer: Antoine Beaupré <anarcat@debian.org>
-Build-Depends: debhelper (>= 7.0.50~), php5-cli (>= 5.2), wget | curl
+Build-Depends: debhelper (>= 7.0.50~), php5-cli (>= 5.2)
 Standards-Version: 3.9.2
 Homepage: http://drupal.org/project/drush
 Vcs-git: http://git.drupal.org/project/drush.git
