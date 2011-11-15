@@ -1,3 +1,12 @@
+drush (4.5-4) unstable; urgency=low
+
+  * Do not require using the upstream branch in git-buildpackage
+  * Revert 4.5-2 approach of fetching table.inc during build, as buildd do
+    not have network access, and Ubuntu rebuilds even Arch: all packages
+    (Closes: #648413).
+
+ -- Antoine Beaupré <anarcat@debian.org>  Tue, 15 Nov 2011 11:06:01 -0500
+
 drush (4.5-3) unstable; urgency=low
 
   * fix watchfile
