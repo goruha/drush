@@ -3,5 +3,5 @@ php:
   - 5.3
   - 5.4
 before_script:
-- export UNISH_DRUSH="${PWD}/drush"
+- export UNISH_DRUSH="${PWD}/drush" && cd tests
 
