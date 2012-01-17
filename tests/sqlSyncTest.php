@@ -27,9 +27,27 @@ class sqlSyncTest extends Drush_CommandTestCase {
     }
 
     $sites = $this->setUpDrupal(2, TRUE);
-    $dump_dir = UNISH_SANDBOX . "/dump-dir";
-    mkdir($dump_dir);
+    return $this->localSqlSync();
+  }
+  /**
+   * Do the same test as above, but use Drupal 6 sites instead of Drupal 7.
+   */
+  public function testLocalSqlSyncD6() {
+    if (strpos(UNISH_DB_URL, 'sqlite') !== FALSE) {
+      $this->markTestSkipped('SQL Sync does not apply to SQLite.');
+      return;
+    }
 
+    $this->setUpBeforeClass();
+    $sites = $this->setUpDrupal(2, TRUE, '6');
+    return $this->localSqlSync();
+  }
+  
+  public function localSqlSync() {
+    $dump_dir = UNISH_SANDBOX . "/dump-dir";
+    if (!is_dir($dump_dir)) {
+      mkdir($dump_dir);
+    }
     // Create a user in the staging site
     $name = 'joe.user';
     $mail = "joe.user@myhome.com";
@@ -66,7 +84,7 @@ class sqlSyncTest extends Drush_CommandTestCase {
     $output = $this->getOutput();
     $row  = str_getcsv($output);
     $uid = $row[1];
-    $this->assertEquals("user+2@localhost", $row[2], 'email address was sanitized on destination site.');
+    $this->assertEquals("user+$uid@localhost", $row[2], 'email address was sanitized on destination site.');
     $this->assertEquals($name, $row[0]);
   }
 }

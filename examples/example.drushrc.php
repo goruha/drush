@@ -75,7 +75,8 @@
  * aliases in one of the drushrc file locations between #3 through #6 above.
  * More information on shell aliases can be found via:
  * `drush topic docs-shell-aliases` on the command line.
- * @see https://git.wiki.kernel.org/index.php/Aliases#Advanced.
+ *
+ * @see https://git.wiki.kernel.org/articles/a/l/i/Aliases.html#Advanced.
  */
 # $options['shell-aliases']['pull'] = '!git pull'; // We've all done it.
 # $options['shell-aliases']['pulldb'] = '!git pull && drush updatedb';
@@ -120,6 +121,14 @@
  * from the code repository.
  */
 # $options['self-update'] = FALSE;
+
+/**
+ * Enable logging and periodic upload of anonymized usage statistics. The Drush
+ * maintainers use this data to learn which commands and options are most
+ * See the usage-show and usage-send commands.
+ */
+# $options['drush_usage_log'] = TRUE;
+# $options['drush_usage_send'] = TRUE;
 
 /**
  * By default, Drush will download projects compatibile with the current

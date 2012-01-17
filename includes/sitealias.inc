@@ -804,8 +804,7 @@ function drush_sitealias_get_db_spec(&$alias_record, $default_to_self = FALSE, $
  * @param $alias_record
  *   The full alias record to populate with database settings
  */
-function drush_sitealias_add_db_settings(&$alias_record)
-{
+function drush_sitealias_add_db_settings(&$alias_record) {
   $altered_record = FALSE;
 
   // If the alias record does not have a defined 'databases' entry,
@@ -1900,13 +1899,14 @@ function drush_sitealias_site_get() {
  * @return string
  *   Full path to tmp file.
  */
-function drush_sitealias_get_envar_filename() {
+function drush_sitealias_get_envar_filename($filename_prefix = 'drush-drupal-site-') {
   $tmp = getenv('TMPDIR') ? getenv('TMPDIR') : '/tmp/';
 
   if (function_exists('posix_getppid') && is_dir($tmp) && is_writable($tmp)) {
-    return $tmp . '/drush-drupal-site-' . posix_getppid();
+    $dir = $tmp . '/drush-env';
+    if (drush_mkdir($dir, FALSE)) {
+      return $dir . '/' . $filename_prefix . posix_getppid();
+    }
   }
-  else {
-    return FALSE;
-  }
+  return FALSE;
 }

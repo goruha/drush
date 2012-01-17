@@ -686,11 +686,13 @@ function _drush_sql_get_db_spec() {
   elseif (drush_bootstrap(DRUSH_BOOTSTRAP_DRUPAL_CONFIGURATION)) {
     switch (drush_drupal_major_version()) {
       case 6:
-        $url = isset($GLOBALS['db_url']) ? $GLOBALS['db_url'] : drush_get_option('db-url', NULL);
-        $url =  is_array($url) ? $url[$database] : $url;
-        $db_spec = drush_convert_db_from_db_url($url);
-        $db_spec['db_prefix'] = isset($GLOBALS['db_prefix']) ? $GLOBALS['db_prefix'] : drush_get_option('db-prefix', NULL);
-        return $db_spec;
+        if ($url = isset($GLOBALS['db_url']) ? $GLOBALS['db_url'] : drush_get_option('db-url', NULL)) {
+          $url =  is_array($url) ? $url[$database] : $url;
+          $db_spec = drush_convert_db_from_db_url($url);
+          $db_spec['db_prefix'] = isset($GLOBALS['db_prefix']) ? $GLOBALS['db_prefix'] : drush_get_option('db-prefix', NULL);
+          return $db_spec;
+        }
+        return NULL;
       default:
         // We don't use DB API here `sql-sync` would have to messily addConnection.
         if (!isset($GLOBALS['databases']) || !array_key_exists($database, $GLOBALS['databases']) || !array_key_exists($target, $GLOBALS['databases'][$database])) {
@@ -704,6 +706,9 @@ function _drush_sql_get_db_spec() {
 function _drush_sql_get_all_db_specs() {
   switch (drush_drupal_major_version()) {
     case 6:
+      if (!isset($GLOBALS['db_url'])) {
+        return NULL;
+      }
       return drush_sitealias_convert_db_from_db_url($GLOBALS['db_url']);
 
     default:
@@ -771,7 +776,14 @@ function drush_sql_dump_file(&$site_record) {
       // If this is a remote site, try to find a writable tmpdir.
       if (isset($site_record['remote-host'])) {
         $result = drush_invoke_process($site_record, 'ev', array('drush_print(drush_find_tmp())'));
-        $dump_dir = trim($result['output']);
+        // If the call to invoke process does not work for some reason (e.g. drush not
+        // installed on the target machine), then we will just presume that the tmp dir is '/tmp'.
+        if (!array_key_exists('output', $result) || empty($result['output'])) {
+          $dump_dir = '/tmp';
+        }
+        else {
+          $dump_dir = trim($result['output']);
+        }
         $dump_file = $dump_dir . '/' . $filename_pattern . '.sql';
       }
       else {
