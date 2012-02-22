@@ -4,10 +4,6 @@
  * @file
  *   Tests for user.drush.inc
  */
-
-/*
- *  @group slow
- */
 class userCase extends Drush_CommandTestCase {
 
   /*
@@ -82,9 +78,16 @@ class userCase extends Drush_CommandTestCase {
 
     // user-cancel
     // create content
-    $this->drush('php-script', array('create_node_types'), $options + array('script-path' => dirname(__FILE__) . '/resources'));
+    $eval = $this->create_node_types_php();
     $this->drush('php-eval', array($eval), $options);
-    $eval = "\$node = (object) array('title' => 'foo', 'uid' => 2, 'type' => 'page',); node_save(\$node);";
+    $eval = "
+      \$node = (object) array(
+        'title' => 'foo',
+        'uid' => 2,
+        'type' => 'page',
+      );
+      node_save(\$node);
+    ";
     $this->drush('php-eval', array($eval), $options);
     $this->drush('user-cancel', array($name), $options + array('delete-content' => NULL));
     $eval = 'print (string) user_load(2)';

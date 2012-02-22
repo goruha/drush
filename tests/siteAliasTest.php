@@ -22,17 +22,12 @@ class saCase extends Drush_CommandTestCase {
       $dirs[] = "#$dir";
     }
     $this->drush('php-eval', array($eval), $options, implode(',', $dirs));
-    $output = $this->getOutputAsList();
-    // We sort the output, producing a screwy display, because we cannot
-    // predict the order of the #dev >> and #stage >> lines, since they
-    // are executed concurrently, and emitted in a non-deterministic order.
-    sort($output);
-    $expected = "  #dev
+    $expected = "You are about to execute 'php-eval print \"bon\";' non-interactively (--yes forced) on all of the following targets:
+  #dev
   #stage
-#dev   >> bon
-#stage >> bon
 Continue?  (y/n): y
-You are about to execute 'php-eval print \"bon\";' non-interactively (--yes forced) on all of the following targets:";
-    $this->assertEquals($expected, implode("\n", $output));
+#dev   >> bon
+#stage >> bon";
+    $this->assertEquals($expected, $this->getOutput());
   }
 }

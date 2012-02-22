@@ -152,8 +152,7 @@ function _drush_shell_exec($args, $interactive = FALSE) {
  * @param string $command
  *   An optional bash fragment.
  * @param string $cd
- *   An optional directory to change into before executing the $command. Set to
- *   boolean TRUE to change into $site['root'] if available.
+ *   An optional directory to change into before executing the $command.
  * @return string
  *   A string suitable for execution with drush_shell_remote_exec().
  */
@@ -324,11 +323,11 @@ function _drush_escapeshellarg_windows($arg) {
   // Double up existing backslashes
   $arg = preg_replace('/\\\/', '\\\\\\\\', $arg);
 
-  // Double up double quotes
-  $arg = preg_replace('/"/', '""', $arg);
+  // Escape double quotes.
+  $arg = preg_replace('/"/', '^"', $arg);
 
-  // Double up percents.
-  $arg = preg_replace('/%/', '%%', $arg);
+  // Escape single quotes.
+  $arg = preg_replace('/\'/', '^\'', $arg);
 
   // Add surrounding quotes.
   $arg = '"' . $arg . '"';
@@ -417,9 +416,6 @@ function drush_start_browser($uri = NULL) {
       else if (drush_shell_exec('which open')) {
         $browser = 'open';
       }
-      else if (!drush_has_bash()) {
-        $browser = 'start';
-      }
       else {
         // Can't find a valid browser.
         $browser = FALSE;
@@ -428,7 +424,7 @@ function drush_start_browser($uri = NULL) {
     if ($browser && !drush_get_context('DRUSH_SIMULATE')) {
       $pipes = array();
       drush_log(dt('Opening browser at !uri', array('!uri' => $uri)));
-      proc_close(proc_open($browser . ' ' . drush_escapeshellarg($uri) . ' 2> ' . drush_bit_bucket() . ' &', array(), $pipes));
+      proc_close(proc_open($browser . ' ' . drush_escapeshellarg($uri) . ' 2> /dev/null &', array(), $pipes));
       return TRUE;
     }
   }

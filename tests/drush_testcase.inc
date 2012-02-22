@@ -29,7 +29,7 @@ abstract class Drush_TestCase extends PHPUnit_Framework_TestCase {
   }
 
   /**
-   * Runs after all tests in a class are run. Remove sandbox directory.
+   * Runs after each test case. Remove sandbox directory.
    */
   public static function tearDownAfterClass() {
     if (file_exists(UNISH_SANDBOX)) {
@@ -75,34 +75,6 @@ abstract class Drush_TestCase extends PHPUnit_Framework_TestCase {
     return (strtoupper(substr(PHP_OS, 0, 3)) == "WIN");
   }
 
-  /**
-   * Converts a Windows path (dir1\dir2\dir3) into a Unix path (dir1/dir2/dir3).
-   * Also converts a cygwin "drive emulation" path (/cygdrive/c/dir1) into a
-   * proper drive path, still with Unix slashes (c:/dir1).
-   *
-   * @copied from Drush's environment.inc
-   */
-  function convert_path($path) {
-    $path = str_replace('\\','/', $path);
-    $path = preg_replace('/^\/cygdrive\/([A-Za-z])(.*)$/', '\1:\2', $path);
-
-    return $path;
-  }
-  
-  /*
-   *Borrowed from Drush.
-   * Checks operating system and returns
-   * supported bit bucket folder.
-   */
-  function bit_bucket() {
-    if (!$this->is_windows()) {
-      return '/dev/null';
-    }
-    else {
-      return 'nul';
-    }
-  }
-
   public static function escapeshellarg($arg) {
     // Short-circuit escaping for simple params (keep stuff readable)
     if (preg_match('|^[a-zA-Z0-9.:/_-]*$|', $arg)) {
@@ -120,50 +92,16 @@ abstract class Drush_TestCase extends PHPUnit_Framework_TestCase {
     // Double up existing backslashes
     $arg = preg_replace('/\\\/', '\\\\\\\\', $arg);
 
-    // Double up double quotes
-    $arg = preg_replace('/"/', '""', $arg);
+    // Escape double quotes.
+    $arg = preg_replace('/"/', '\\"', $arg);
 
-    // Double up percents.
-    // $arg = preg_replace('/%/', '%%', $arg);
+    // Escape single quotes.
+    $arg = preg_replace('/\'/', '\\\'', $arg);
 
     // Add surrounding quotes.
     $arg = '"' . $arg . '"';
 
     return $arg;
-  }
-
-  /**
-   * Helper function to generate a random string of arbitrary length.
-   *
-   * Copied from drush_generate_password(), which is otherwise not available here.
-   *
-   * @param $length
-   *   Number of characters the generated string should contain.
-   * @return
-   *   The generated string.
-   */
-  public function randomString($length = 10) {
-    // This variable contains the list of allowable characters for the
-    // password. Note that the number 0 and the letter 'O' have been
-    // removed to avoid confusion between the two. The same is true
-    // of 'I', 1, and 'l'.
-    $allowable_characters = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-
-    // Zero-based count of characters in the allowable list:
-    $len = strlen($allowable_characters) - 1;
-
-    // Declare the password as a blank string.
-    $pass = '';
-
-    // Loop the number of times specified by $length.
-    for ($i = 0; $i < $length; $i++) {
-
-      // Each iteration, pick a random character from the
-      // allowable string and append it to the password:
-      $pass .= $allowable_characters[mt_rand(0, $len)];
-    }
-
-    return $pass;
   }
 
   /**
@@ -252,7 +190,6 @@ abstract class Drush_TestCase extends PHPUnit_Framework_TestCase {
         'cache' => NULL,
       );
       $this->drush('pm-download', array("drupal-$version_string"), $options);
-      mkdir(UNISH_SANDBOX . '/web/sites/all/drush');
     }
 
     // If specified, install Drupal as a multi-site.
@@ -323,7 +260,7 @@ abstract class Drush_CommandTestCase extends Drush_TestCase {
   function drush($command, array $args = array(), array $options = array(), $site_specification = NULL, $cd = NULL, $expected_return = self::EXIT_SUCCESS) {
     $global_option_list = array('simulate', 'root', 'uri', 'include', 'config', 'alias-path', 'ssh-options');
     // insert "cd ... ; drush"
-    $cmd[] = $cd ? sprintf('cd %s &&', self::escapeshellarg($cd)) : NULL;
+    $cmd[] = $cd ? sprintf('cd %s;', self::escapeshellarg($cd)) : NULL;
     $cmd[] = UNISH_DRUSH;
 
     // insert global options
@@ -374,6 +311,39 @@ abstract class Drush_CommandTestCase extends Drush_TestCase {
       list($major) = explode('.', $version);
     }
     return $major;
+  }
+
+  // Copied from D7 - profiles/standard/standard.install
+  function create_node_types_php() {
+    $php = "
+      \$types = array(
+        array(
+          'type' => 'page',
+          'name' => 'Basic page',
+          'base' => 'node_content',
+          'description' => 'Use <em>basic pages</em> for your static content, such as an \'About us\' page.',
+          'custom' => 1,
+          'modified' => 1,
+          'locked' => 0,
+        ),
+        array(
+          'type' => 'article',
+          'name' => 'Article',
+          'base' => 'node_content',
+          'description' => 'Use <em>articles</em> for time-sensitive content like news, press releases or blog posts.',
+          'custom' => 1,
+          'modified' => 1,
+          'locked' => 0,
+        ),
+      );
+
+      foreach (\$types as \$type) {
+        \$type = node_type_set_defaults(\$type);
+        node_type_save(\$type);
+        node_add_body_field(\$type);
+      }
+    ";
+    return $php;
   }
 
   /*
@@ -429,15 +399,8 @@ abstract class Drush_UnitTestCase extends Drush_TestCase {
  * Initialize our environment at the start of each run (i.e. suite).
  */
 function unish_init() {
-  // We read from env then globals then default to mysql.
-  $unish_db_url = 'mysql://root:@127.0.0.1';
-  if (getenv('UNISH_DB_URL')) {
-    $unish_db_url = getenv('UNISH_DB_URL');
-  }
-  elseif (isset($GLOBALS['UNISH_DB_URL'])) {
-    $unish_db_url = $GLOBALS['UNISH_DB_URL'];
-  }
-  define('UNISH_DB_URL', $unish_db_url);
+  // We read from globals here because env can be empty and ini did not work in quick test.
+  define('UNISH_DB_URL', getenv('UNISH_DB_URL') ? getenv('UNISH_DB_URL') : !empty($GLOBALS['UNISH_DB_URL']) ? $GLOBALS['UNISH_DB_URL'] : 'mysql://root:@127.0.0.1');
 
   // UNISH_DRUSH value can come from phpunit.xml or `which drush`.
   if (!defined('UNISH_DRUSH')) {

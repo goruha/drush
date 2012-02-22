@@ -5,61 +5,11 @@
  *   Tests for core commands.
  */
 class coreCase extends Drush_CommandTestCase {
-  /**
-   * Test to see if rsync @site:%files calculates the %files path correctly.
-   * This tests the non-optimized code path in drush_sitealias_resolve_path_references.
-   */
-  function testRsyncPercentFiles() {
-    $this->setUpDrupal(1, TRUE);
-    $root = $this->webroot();
-    $site = key($this->sites);
-    $options = array(
-      'root' => $root,
-      'uri' => key($this->sites),
-      'simulate' => NULL,
-      'include-conf' => NULL,
-      'include-vcs' => NULL,
-      'yes' => NULL,
-      'invoke' => NULL, // invoke from script: do not verify options
-    );
-    $this->drush('core-rsync', array("@$site:%files", "/tmp"), $options);
-    $output = $this->getOutput();
-    $expected = sprintf("Calling system(rsync -e 'ssh ' -akz --yes --invoke %s /tmp);", UNISH_SANDBOX . "/web/sites/$site/files");
-    $this->assertEquals($expected, $output);
-  }
-
-  /**
-   * Test to see if the optimized code path in drush_sitealias_resolve_path_references
-   * that avoids a call to backend invoke when evaluating %files works.
-   */
-  function testPercentFilesOptimization() {
-    $this->setUpDrupal(1, TRUE);
-    $root = $this->webroot();
-    $site = key($this->sites);
-    $options = array(
-      'root' => $root,
-      'uri' => key($this->sites),
-      'simulate' => NULL,
-      'include-conf' => NULL,
-      'include-vcs' => NULL,
-      'yes' => NULL,
-      'invoke' => NULL, // invoke from script: do not verify options
-    );
-    $php = '$a=drush_sitealias_get_record("@' . $site . '"); drush_sitealias_resolve_path_references($a, "%files"); print_r($a["path-aliases"]["%files"]);';
-    $this->drush('ev', array($php), $options);
-    $output = $this->getOutput();
-    $expected = "sites/dev/files";
-    $this->assertEquals($expected, $output);
-  }
 
   /*
    * Test standalone php-script scripts. Assure that script args and options work.
    */
   public function testStandaloneScript() {
-    if ($this->is_windows()) {
-      $this->markTestSkipped('Standalone scripts not currently available on Windows.');
-    }
-
     $this->drush('version', array('drush_version'), array('pipe' => NULL));
     $standard = $this->getOutput();
 
@@ -115,7 +65,7 @@ drush_invoke("version", $arg);
       'root' => $root,
       'uri' => key($this->sites),
       'pipe' => NULL,
-      'ignore' => 'cron,http requests,update_core', // no network access when running in tests, so ignore these
+      'ignore' => 'http requests,update_core', // no network access when running in tests, so ignore these
       'invoke' => NULL, // invoke from script: do not verify options
     );
     // Verify that there are no severity 2 items in the status report
@@ -124,7 +74,8 @@ drush_invoke("version", $arg);
     $this->assertEquals('', $output);
     $this->drush('core-requirements', array(), $options);
     $output = $this->getOutput();
-    $expected="database_system: -1
+    $expected="cron: 1
+database_system: -1
 database_system_version: -1
 drupal: -1
 file system: -1

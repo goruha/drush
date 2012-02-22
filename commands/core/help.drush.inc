@@ -23,7 +23,7 @@ function drush_show_help($commandstring) {
     $msg = dt("'@alias-name' is a shell alias.  Its value is: !name. See `drush topic docs-shell-aliases` and `drush shell-alias` for more information.", array('@alias-name' => $commandstring, '!name' => $shell_aliases[$commandstring]));
     drush_log($msg, 'ok');
     return TRUE;
-  }
+  }  
   return drush_set_error('DRUSH_COMMAND_NOT_FOUND', dt('Invalid command !command.', array('!command' => $commandstring)));
 }
 
@@ -35,13 +35,10 @@ function drush_show_help($commandstring) {
  */
 function drush_print_help($command) {
   _drush_help_merge_subcommand_information($command);
+  _drush_merge_engine_data($command);
 
   if (!$help = drush_command_invoke_all('drush_help', 'drush:'. $command['command'])) {
     $help = array($command['description']);
-  }
-
-  if ($command['strict-option-handling']) {
-    $command['topics'][] = 'docs-strict-options';
   }
 
   // Give commandfiles an opportunity to add examples and options to the command.
@@ -51,10 +48,6 @@ function drush_print_help($command) {
   drush_print(wordwrap(implode("\n", $help), drush_get_context('DRUSH_COLUMNS', 80)));
   drush_print();
 
-  // Sort command options.
-  uksort($command['options'], '_drush_help_sort_command_options');
-
-  // Print command sections help.
   foreach ($command['sections'] as $key => $value) {
     if (!empty($command[$key])) {
       drush_print(dt($value) . ':');
@@ -72,26 +65,6 @@ function drush_print_help($command) {
 }
 
 /**
- * Sort command options alphabetically. Engine options at the end.
- */
-function _drush_help_sort_command_options($a, $b) {
-  $engine_a = strpos($a, '=');
-  $engine_b = strpos($b, '=');
-  if ($engine_a && !$engine_b) {
-    return 1;
-  }
-  else if (!$engine_a && $engine_b) {
-    return -1;
-  }
-  elseif ($engine_a && $engine_b) {
-    if (substr($a, 0, $engine_a) == substr($b, 0, $engine_b)) {
-      return 0;
-    }
-  }
-  return ($a < $b) ? -1 : 1;
-}
-
-/**
  * Check to see if the specified command contains an 'allow-additional-options'
  * record.  If it does, find the additional options that are allowed, and
  * add in the help text for the options of all of the sub-commands.
@@ -104,7 +77,7 @@ function _drush_help_merge_subcommand_information(&$command) {
     $implemented = drush_get_commands();
     foreach ($command['allow-additional-options'] as $subcommand_name) {
       if (array_key_exists($subcommand_name, $implemented)) {
-        $command['options'] += $implemented[$subcommand_name]['options'];
+        $command['options'] += $implemented[$subcommand_name]['options']; 
         $command['sub-options'] = array_merge_recursive($command['sub-options'], $implemented[$subcommand_name]['sub-options']);
         if (empty($command['arguments'])) {
           $command['arguments'] = $implemented[$subcommand_name]['arguments'];
@@ -197,18 +170,10 @@ function drush_help_section_formatter_options($command, &$help_attributes) {
   if (array_key_exists('required', $help_attributes)) {
     $help_attributes['description'] .= " " . dt("Required.");
   }
-
-  $prefix = '<';
-  $suffix = '>';
   if (array_key_exists('example-value', $help_attributes)) {
-    if (isset($help_attributes['value']) && $help_attributes['value'] == 'optional') {
-      $prefix = '[';
-      $suffix = ']';
-    }
-    $help_attributes['label'] .= '=' . $prefix . $help_attributes['example-value'] . $suffix;
-
+    $help_attributes['label'] .= '=' . $help_attributes['example-value'];
     if (array_key_exists('short-form', $help_attributes)) {
-      $help_attributes['short-form'] .= " $prefix" . $help_attributes['example-value'] . $suffix;
+      $help_attributes['short-form'] .= ' ' . $help_attributes['example-value'];
     }
   }
   if (array_key_exists('short-form', $help_attributes)) {

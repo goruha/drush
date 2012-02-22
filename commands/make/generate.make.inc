@@ -8,8 +8,7 @@ include_once drupal_get_path('module', 'system') . '/system.install';
  */
 function drush_make_generate($file = NULL) {
   $version_options = _drush_make_generate_get_version_options();
-  $all_extensions = drush_get_extensions();
-  $projects = _drush_make_generate_projects($all_extensions, $version_options);
+  $projects = _drush_make_generage_projects($version_options);
   $contents = _drush_make_generate_makefile_contents($projects);
   
   if (!$file) {
@@ -42,8 +41,11 @@ function _drush_make_generate_get_version_options() {
 /**
  * Generate the $projects makefile array for the current site.
  */
-function _drush_make_generate_projects($all_extensions, $version_options) {
+function _drush_make_generage_projects($version_options) {
   $projects = array();
+
+  $release_info = drush_get_option('release-info', 'updatexml');
+  drush_include_engine('release_info', $release_info);
 
   $system_requirements = system_requirements('runtime');
   // update xml expects the drupal version to be expressed as "7.x" or "8.x"
@@ -78,6 +80,7 @@ function _drush_make_generate_projects($all_extensions, $version_options) {
   }
 
   // Iterate installed projects to build $projects array.
+  $all_extensions = drush_get_extensions();
   $extensions = $all_extensions;
   $project_info = drush_get_projects($extensions);
   foreach ($project_info as $name => $project) {
@@ -170,7 +173,7 @@ function _drush_generate_custom_project($name, $extension, $version_options) {
   // stored in a folder named after its project, and there are
   // no subfolders between the .info file and the project root.
   $project_name = basename($location);
-  drush_shell_cd_and_exec($location, 'git rev-parse --git-dir 2> ' . drush_bit_bucket());
+  drush_shell_cd_and_exec($location, 'git rev-parse --git-dir 2> /dev/null');
   $output = drush_shell_exec_output();
   if (!empty($output)) {
     $git_dir = $output[0];
@@ -181,8 +184,7 @@ function _drush_generate_custom_project($name, $extension, $version_options) {
     // pausibly be a project, then there is nothing we can do.
     // (We can't tell Drush make to download some sub-part of a repo,
     // can we?)
-    if ($repo_project_name = _drush_generate_validate_repo_location($repo_root)) {
-      $project_name = $repo_project_name;
+    if ($project_name = _drush_generate_validate_repo_location($repo_root)) {
       drush_shell_cd_and_exec($repo_root, 'git remote show origin');
       $output = drush_shell_exec_output();
       foreach ($output as $line) {
@@ -320,7 +322,7 @@ function _drush_make_generate_makefile_contents($projects) {
     $base = $type . '[' . $name . ']';
     if (isset($project['custom_download'])) {
       $custom = TRUE;
-      $output[] = '; Please fill the following out. Type may be one of get, git, bzr or svn,';
+      $output[] = '; Please fill the following out. Type may be one of get, cvs, git, bzr or svn,';
       $output[] = '; and url is the url of the download.';
       $output[$base . '[download][type]'] = '""';
       $output[$base . '[download][url]'] = '""';

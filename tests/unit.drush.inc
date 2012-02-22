@@ -27,14 +27,6 @@ function unit_drush_command() {
     'description' => 'Run a batch process.',
     'bootstrap' => DRUSH_BOOTSTRAP_MAX,
   );
-  $items['unit-return-options'] = array(
-    'description' => 'Return options as function result.',
-    'bootstrap' => DRUSH_BOOTSTRAP_NONE,
-  );
-  $items['missing-callback'] = array(
-    'description' => 'Command with no callback function, to test error reporting.',
-    'bootstrap' => DRUSH_BOOTSTRAP_NONE,
-  );
   return $items;
 }
 
@@ -117,14 +109,4 @@ function _drush_unit_batch_operation(&$context) {
 function _drush_unit_batch_finished() {
   // Restore php limits.
   // TODO.
-}
-
-// Return all of the option values passed in to this routine, minus the
-// global options.
-function drush_unit_return_options() {
-  $all_option_values = array_merge(drush_get_context('cli'), drush_get_context('stdin'));
-  foreach (drush_get_global_options() as $key => $info) {
-    unset($all_option_values[$key]);
-  }
-  return $all_option_values;
 }

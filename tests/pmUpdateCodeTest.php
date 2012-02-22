@@ -7,12 +7,9 @@
   *   @todo test security-only once one of these modules or core gets a security release.
   */
 
-/*
- *  @group slow
- */
 class pmUpdateCode extends Drush_CommandTestCase {
 
-  /**
+  /*
    * Download old core and older contrib releases which will always need updating.
    */
   public function setUp() {
@@ -63,28 +60,16 @@ class pmUpdateCode extends Drush_CommandTestCase {
     $this->assertNotContains('webform', $all, 'Webform was updated');
 
     // Verify that we keep backups as instructed.
+    $pattern = 'find %s -iname %s';
     $backup_dir = UNISH_SANDBOX . '/backups';
-    $Directory = new RecursiveDirectoryIterator($backup_dir);
-    $Iterator = new RecursiveIteratorIterator($Directory);
-    $found = FALSE;
-    foreach ($Iterator as $item) {
-      if (basename($item) == 'devel.module') {
-        $found = TRUE;
-        break;
-      }
-    }
-    $this->assertTrue($found, 'Backup exists and contains devel module.');
+    $cmd = sprintf($pattern, self::escapeshellarg($backup_dir), escapeshellarg('devel.module'));
+    $this->execute($cmd);
+    $output = $this->getOutput();
+    $this->assertNotEmpty($output);
 
-
-
-    $Iterator = new RecursiveIteratorIterator($Directory);
-    $found = FALSE;
-    foreach ($Iterator as $item) {
-      if (basename($item) == 'webform.module') {
-        $found = TRUE;
-        break;
-      }
-    }
-    $this->assertFalse($found, 'Backup exists and does not contain webformmodule.');
+    $cmd = sprintf($pattern, self::escapeshellarg($backup_dir), escapeshellarg('webform.module'));
+    $this->execute($cmd);
+    $output = $this->getOutput();
+    $this->assertEmpty($output);
   }
 }

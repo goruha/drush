@@ -311,8 +311,9 @@ class DrushFileCache implements DrushCacheInterface {
   }
 
   function cacheDirectory($bin = NULL) {
-    $bin = $bin ? $bin : $this->bin;
-    return drush_directory_cache($bin);
+    $bin = $bin ? '/' . $bin : '/' . $this->bin;
+    $cache_dir = drush_directory_cache() . '/' . $bin;
+    return drush_mkdir($cache_dir) ? $cache_dir : FALSE;
   }
 
   function get($cid) {

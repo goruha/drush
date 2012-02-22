@@ -14,7 +14,6 @@
  *     2. Anywhere in a folder tree below an active module on your site.
  *     3. /usr/share/drush/commands (configurable)
  *     4. In an arbitrary folder specified with the --include option.
- *     5. Drupal's sites/all/drush folder.
  */
 
 /**
@@ -42,10 +41,7 @@ function sandwich_drush_command() {
       'filling' => 'The type of the sandwich (turkey, cheese, etc.). Defaults to ascii.',
     ),
     'options' => array(
-      'spreads' => array(
-        'description' => 'Comma delimited list of spreads.',
-        'example-value' => 'mayonnaise,mustard',
-      ),
+      'spreads' => 'Comma delimited list of spreads (e.g. mayonnaise, mustard)',
     ),
     'examples' => array(
       'drush mmas turkey --spreads=ketchup,mustard' => 'Make a terrible-tasting sandwich that is lacking in pickles.',

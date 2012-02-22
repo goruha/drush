@@ -11,14 +11,13 @@
 class contextCase extends Drush_CommandTestCase {
 
   function setUpPaths() {
-    $this->log("webroot: ".$this->webroot()."\n");
     $this->env = key($this->sites);
     $this->site = $this->webroot() . '/sites/' . $this->env;
     $this->home = UNISH_SANDBOX . '/home';
     $this->paths = array(
       'custom' => UNISH_SANDBOX,
       'site' =>  $this->site,
-      'drupal' => $this->webroot() . '/sites/all/drush',
+      'drupal' => $this->webroot(),
       'user' => $this->home,
       'home.drush' => $this->home . '/.drush',
       'system' => UNISH_SANDBOX . '/etc/drush',
@@ -34,7 +33,7 @@ class contextCase extends Drush_CommandTestCase {
    * Try to write a tiny drushrc.php to each place that drush checks. Also
    * write a sites/dev/aliases.drushrc.php file to the sandbox.
    */
-  function setUp() {
+  function setup() {
     parent::setUp();
 
     $this->setUpDrupal();
@@ -44,7 +43,7 @@ class contextCase extends Drush_CommandTestCase {
     foreach ($this->paths as $key => $path) {
       $contents = <<<EOD
 <?php
-// Written by Drush's contextCase::setUp(). This file is safe to delete.
+// Written by Drush's contextCase::setup(). This file is safe to delete.
 
 \$options['contextConfig'] = '$key';
 \$command_specific['unit-eval']['contextConfig'] = '$key-specific';
@@ -52,7 +51,7 @@ class contextCase extends Drush_CommandTestCase {
 EOD;
       $path .= $key == 'user' ? '/.drushrc.php' : '/drushrc.php';
       if (file_put_contents($path, $contents)) {
-        $this->written[] = $this->convert_path($path);
+        $this->written[] = $path;
       }
     }
 
@@ -72,7 +71,7 @@ EOD;
 
   /**
    * These should be different tests but I could not work out how to do that
-   * without calling setUp() twice. setUpBeforeClass() did not work out (for MW).
+   * without calling setup() twice. setupBeforeClass() did not work out (for MW).
    */
   function testContext() {
     $this->ConfigSearchPaths();
@@ -93,7 +92,6 @@ EOD;
     $this->drush('core-status', array('Drush configuration'), $options);
     $output = trim($this->getOutput());
     $loaded = explode(' ', $output);
-    $loaded = array_map(array(&$this, 'convert_path'), $loaded);
     $this->assertSame($this->written, $loaded);
   }
 
@@ -124,9 +122,6 @@ EOD;
     $this->drush('core-status', array('Drush configuration'), array('pipe' => NULL));
     $output = trim($this->getOutput());
     $loaded = explode(' ', $output);
-    // Next 2 lines needed for Windows compatibility.
-    $loaded = array_map(array(&$this, 'convert_path'), $loaded);
-    $files = array_map(array(&$this, 'convert_path'), $files);
     $this->assertTrue(in_array($files[0], $loaded), 'Loaded a version-specific config file.');
     $this->assertFalse(in_array($files[1], $loaded), 'Did not load a mismatched version-specific config file.');
   }

@@ -24,8 +24,6 @@ function package_handler_validate() {
   if (!$success) {
     return drush_set_error('DRUSH_SHELL_COMMAND_NOT_FOUND', dt('wget nor curl executables found.'));
   }
-
-  return TRUE;
 }
 
 /**

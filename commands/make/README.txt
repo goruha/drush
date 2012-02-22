@@ -10,7 +10,7 @@ Drupal distribution as a single text file.
 Among drush make's capabilities are:
 
 - Downloading Drupal core, as well as contrib modules from drupal.org.
-- Checking code out from SVN, git, and bzr repositories.
+- Checking code out from CVS, SVN, git, and bzr repositories.
 - Getting plain `.tar.gz` and `.zip` files (particularly useful for libraries
   that can not be distributed directly with drupal core or modules).
 - Fetching and applying patches.
@@ -25,6 +25,81 @@ independent of any Drupal sites entirely. See the examples below for instances
 where `drush make` can be used within an existing Drupal site.
 
     drush make [-options] [filename.make] [build path]
+
+
+### Options
+
+    --contrib-destination=path
+
+      Specify a path under which modules and themes should be
+      placed. Defaults to sites/all.
+
+    --force-complete
+
+      Force a complete build even if errors occur.
+
+    --ignore-checksums
+
+      Do not verify md5 checksums for downloaded files.
+
+    --md5
+
+      Output an md5 hash of the current build after completion.
+
+    --no-clean
+
+      Leave temporary build directories in place instead of
+      cleaning up after completion.
+
+    --no-core
+
+      Do not require a Drupal core project to be specified.
+
+    --no-patch-txt
+
+      Do not write a PATCHES.txt file in the directory of
+      each patched project.
+
+    --prepare-install
+
+      Prepare the built site for installation. Generate a
+      properly permissioned settings.php and files directory.
+
+    --tar
+
+      Generate a tar archive of the build. The output filename
+      will be [build path].tar.gz.
+
+    --test
+
+      Run a temporary test build and clean up.
+
+    --translations=languages
+
+      Retrieve translations for the specified comma-separated list
+      of language(s) if available for all projects.
+
+    --working-copy
+
+      Where possible, retrieve a working copy of projects from
+      their respective repositories.
+
+
+### Examples
+
+1. Build a Drupal site at `example/` including Drupal core and any projects
+   defined in the makefile:
+
+        drush make example.make example
+
+2. Build a tarball of the platform above as `example.tar.gz`:
+
+        drush make --tar example.make example
+
+3. Build an installation profile within an existing Drupal site:
+
+        drush make --no-core --contrib-destination=. installprofile.make
+
 
 The `.make` file format
 -----------------------
@@ -61,7 +136,7 @@ specified as the key.
 
 **Project using options (see below):**
 
-    projects[drupal][version] = 7.12
+    projects[drupal][version] = 6.15
 
 Do not use both types of declarations for a single project in your makefile.
 
@@ -145,21 +220,10 @@ Do not use both types of declarations for a single project in your makefile.
 
         projects[myproject][overwrite] = TRUE
 
-- `translations`
-
-  Retrieve translations for the specified language, if available, for all projects.
-
-               translations[] = es
-
 
 ### Project download options
 
   Use an alternative download method instead of retrieval through update XML.
-
-  If no download type is specified, make defaults the type to
-  `git`. Additionally, if no url is specified, make defaults to use
-  Drupal.org.
-
   The following methods are available:
 
 - `download[type] = file`
@@ -183,6 +247,24 @@ Do not use both types of declarations for a single project in your makefile.
 
   `url` - the URL of the repository. Required.
 
+- `download[type] = cvs`
+
+  Use a CVS repository as the source for this project. Options:
+
+  `date` - use the latest revision no later than specified date. See the CVS
+  man page for more about how to use the date flag.
+
+  `root` - the CVS repository to use for this project. Optional. If unspecified,
+  the `CVSROOT` environment value will first be used and finally Drupal contrib
+  CVS is used as a last resort fallback.
+
+  `module` - the CVS module to retrieve. Required.
+
+  `revision` - a specific tag or revision to check out. Optional.
+
+     projects[mytheme][download][type] = "cvs"
+     projects[mytheme][download][module] = "mytheme"
+
 - `download[type] = git`
 
   Use a git repository as the source for this project. Options:
@@ -197,15 +279,6 @@ Do not use both types of declarations for a single project in your makefile.
 
      projects[mytheme][download][type] = "git"
      projects[mytheme][download][url] = "git://github.com/jane_doe/mytheme.git"
-
-  Shorthand is available to pull a specific revision from a git
-  repository:
-
-  projects[context_admin][revision] = "eb9f05e"
-
-  is the same as:
-
-  projects[context_admin][download][revision] = "eb9f05e"
 
 - `download[type] = svn`
 
@@ -289,10 +362,11 @@ Properties in the includer takes precedence over the includee.
     projects[views][subdir] = "patched"
 
     ; This line overrides the included makefile, switching the download type
-    ; to a git clone
+    ; to a CVS checkout
     projects[views][type] = "module"
-    projects[views][download][type] = "git"
-    projects[views][download][url] = "http://git.drupal.org/project/views.git"
+    projects[views][download][type] = "cvs"
+    projects[views][download][module] = "contributions/modules/views"
+    projects[views][download][revision] = "DRUPAL-6--2"
 
 A project or library entry of an included makefile can be removed entirely by
 setting the corresponding key to FALSE:
@@ -340,15 +414,14 @@ Testing
 Drush make also comes with testing capabilities, designed to test drush make
 itself. Writing a new test is extremely simple. The process is as follows:
 
-1. Figure out what you want to test. Write a makefile that will test
-   this out.  You can refer to existing test makefiles for
-   examples. These are located in `DRUSH/tests/makefiles`.
+1. Figure out what you want to test. Write a makefile that will test this out.
+   You can refer to existing test makefiles for examples.
 2. Drush make your makefile, and use the --md5 option. You may also use other
    options, but be sure to take note of which ones for step 4.
 3. Verify that the result you got was in fact what you expected. If so,
    continue. If not, tweak it and re-run step 2 until it's what you expected.
 4. Using the md5 hash that was spit out from step 2, make a new entry in the
-   tests clase (DRUSH/tests/makeTest.php), following the example below.
+   tests array in drush_make.test.inc, following the example below.
     'machine-readable-name' => array(
       'name'     => 'Human readable name',
       'makefile' => 'tests/yourtest.make',
@@ -357,11 +430,7 @@ itself. Writing a new test is extremely simple. The process is as follows:
       ),
       'options'  => array('any' => TRUE, 'other' => TRUE, 'options' => TRUE),
     ),
-5. Test! Run drush test suite (see DRUSH/tests/README.txt). To just
-   run the make tests:
-
-     `phpunit --filter=makeMake .`
-
+5. Test! Run drush make-test machine-readable-name to see if the test passes.
 
 You can check for any messages you want in the message array, but the most
 basic tests would just check the build hash.
@@ -371,7 +440,7 @@ Generate
 
 Drush make has a primitive makefile generation capability. To use it, simply
 change your directory to the Drupal installation from which you would like to
-generate the file, and run the following command:
+generate the file, and run the following command: 
 
 `drush generate-makefile /path/to/make-file.make`
 
@@ -379,11 +448,15 @@ This will generate a basic makefile. If you have code from other repositories,
 the makefile will not complete - you'll have to fill in some information before
 it is fully functional.
 
-Maintainers
------------
-- Jonathan Hedstrom (jhedstrom)
-- The rest of the Drush maintainers
+Maintainer
+----------
+- Dmitri Gaskin (dmitrig01)
 
-Original Author
----------------
-Dmitri Gaskin (dmitrig01)
+Co-maintainers
+------------
+- Adrian Rossouw (adrian)
+- Antoine Beaupré (anarcat)
+- Chad Phillips (hunmonk)
+- Jeff Miccolis (jmiccolis)
+- Young Hahn (yhahn)
+

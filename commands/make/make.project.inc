@@ -11,16 +11,6 @@ class DrushMakeProject {
   protected $made = FALSE;
 
   /**
-   * TRUE if download() method has been called successfully, otherwise FALSE.
-   */
-  protected $downloaded = NULL;
-
-  /**
-   * Download location to use.
-   */
-  protected $download_location = NULL;
-
-  /**
    * Keep track of instances.
    *
    * @see DrushMakeProject::getInstance()
@@ -56,46 +46,6 @@ class DrushMakeProject {
   }
 
   /**
-   * Download a project.
-   */
-  function download() {
-    $this->downloaded = TRUE;
-
-    // In some cases, make_download_factory() is going to need to know the
-    // full version string of the project we're trying to download. However,
-    // the version is a project-level attribute, not a download-level
-    // attribute. So, if we don't already have a full version string in the
-    // download array (e.g. if it was initialized via the release history XML
-    // for the PM case), we take the version info from the project-level
-    // attribute, convert it into a full version string, and stuff it into
-    // $this->download so that the download backend has access to it, too.
-    if (!empty($this->version) && empty($this->download['full_version'])) {
-      $full_version = '';
-      // If the version doesn't already define a core version, prepend it.
-      if (!preg_match('/\d+\.x-\d+.*/', $this->version)) {
-        $full_version = $this->core . '-';
-      }
-      $full_version .= $this->version;
-      // If the project-level version attribute is just a number it's a major version 
-      $matches = array();
-      if (preg_match('/\d+(\.x)?$/', $this->version, $matches)) {
-        // If there's no '.x' already, append it.
-        if (empty($matches[1])) {
-          $full_version .= '.x';
-        }
-        $full_version .= '-dev';
-      }
-
-      $this->download['full_version'] = $full_version;
-    }
-
-    if (make_download_factory($this->name, $this->download, $this->download_location) === FALSE) {
-      $this->downloaded = FALSE;
-    }
-    return $this->downloaded;
-  }
-
-  /**
    * Build a project.
    */
   function make() {
@@ -105,25 +55,36 @@ class DrushMakeProject {
     }
     $this->made = TRUE;
 
-    if (is_null($this->download_location)) {
-      $this->download_location = $this->findDownloadLocation();
-    }
-    if ($this->download() === FALSE) {
+    $download_location = $this->findDownloadLocation();
+    if (make_download_factory($this->name, $this->download, $download_location) === FALSE) {
       return FALSE;
     }
-    if (!$this->addLockfile($this->download_location)) {
+    if (!$this->addLockfile($download_location)) {
       return FALSE;
     }
-    if (!$this->applyPatches($this->download_location)) {
+    if (!$this->applyPatches($download_location)) {
       return FALSE;
     }
-    if (!$this->getTranslations($this->download_location)) {
+    if (!$this->getTranslations($download_location)) {
       return FALSE;
     }
-    if (!$this->recurse($this->download_location)) {
+    if (!$this->recurse($download_location)) {
       return FALSE;
     }
     return TRUE;
+  }
+
+  protected function preprocessLocalFileUrl($url) {
+    $uri = parse_url($url);
+    if (!isset($uri['scheme']) && isset($uri['path'])) {
+      $path = $uri['path'];
+      if (!drush_is_absolute_path($uri['path'])) {
+        $path = $this->make_directory .'/'. $path;
+      }
+      $path = realpath($path);
+      $url = "file://$path";
+    }
+    return $url;
   }
 
   function findDownloadLocation() {
@@ -158,7 +119,10 @@ class DrushMakeProject {
     $ignore_checksums = drush_get_option('ignore-checksums');
     foreach ($this->patch as $info) {
       if (!is_array($info)) {
-        $info = array('url' => $info);
+        $info = array('url' => $this->preprocessLocalFileUrl($info));
+      }
+      else {
+        $info['url'] = $this->preprocessLocalFileUrl($info['url']);
       }
       // Download the patch.
       if ($filename = _make_download_file($info)) {
@@ -235,8 +199,8 @@ class DrushMakeProject {
    */
   function getTranslations($project_directory) {
     static $cache = array();
-    $langcodes = $this->translations;
-    if ($langcodes && in_array($this->type, array('core', 'module', 'profile', 'theme'), TRUE)) {
+    $langcodes = drush_get_option('translations', FALSE);
+    if ($langcodes && $this->version !== drush_get_option('drush-make-version-best') && in_array($this->type, array('core', 'module', 'profile', 'theme'), TRUE)) {
       // Support the l10n_path, l10n_url keys from l10n_update. Note that the
       // l10n_server key is not supported.
       if (isset($this->l10n_path)) {
@@ -251,9 +215,10 @@ class DrushMakeProject {
         }
         if ($l10n_server) {
           if (!isset($cache[$l10n_server])) {
-            if ($filename = _make_download_file($l10n_server)) {
+            if ($filename = _make_download_file($this->preprocessLocalFileUrl($l10n_server))) {
               $server_info = simplexml_load_string(file_get_contents($filename));
               $cache[$l10n_server] = !empty($server_info->update_url) ? $server_info->update_url : FALSE;
+              drush_op('unlink', $filename);
             }
           }
           if ($cache[$l10n_server]) {
@@ -267,10 +232,11 @@ class DrushMakeProject {
       }
       if ($update_url) {
         $failed = array();
+        $langcodes = explode(',', $langcodes);
         foreach ($langcodes as $langcode) {
           $variables = array(
             '%project' => $this->name,
-            '%release' => $this->download['full_version'],
+            '%release' => $this->type === 'core' ? $this->version : "{$this->core}-{$this->version}",
             '%core' => $this->core,
             '%language' => $langcode,
             '%filename' => '%filename',
@@ -278,7 +244,7 @@ class DrushMakeProject {
           $url = strtr($update_url, $variables);
 
           // Download the translation file.
-          if ($filename = _make_download_file($url)) {
+          if ($filename = _make_download_file($this->preprocessLocalFileUrl($url))) {
             // If this is the core project type, download the translation file
             // and create two copies:
             // 1. To profiles/default/translations. It must be named

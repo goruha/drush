@@ -26,8 +26,8 @@ class makeMakefileCase extends Drush_CommandTestCase {
 
     // Check the log for the build hash if this test should pass.
     if (empty($config['fail'])) {
-      $output = $this->getOutput();
-      $this->assertContains($config['md5'], $output, $config['name'] . ' - build md5 matches expected value: ' . $config['md5']);
+      $output = $this->getOutputAsList();
+      $this->assertTrue(in_array($config['md5'], $output), $config['name'] . ' - build md5 matches expected value: ' . $config['md5']);
     }
   }
 
@@ -35,12 +35,12 @@ class makeMakefileCase extends Drush_CommandTestCase {
     $this->runMakefileTest('get');
   }
 
-  function testMakeGit() {
-    $this->runMakefileTest('git');
+  function testMakePost() {
+    $this->runMakefileTest('post');
   }
 
-  function testMakeGitSimple() {
-    $this->runMakefileTest('git-simple');
+  function testMakeGit() {
+    $this->runMakefileTest('git');
   }
 
   function testMakeNoPatchTxt() {
@@ -85,10 +85,6 @@ class makeMakefileCase extends Drush_CommandTestCase {
     $this->runMakefileTest('translations');
   }
 
-  function testMakeTranslationsInside() {
-    $this->runMakefileTest('translations-inside');
-  }
-
   function testMakeContribDestination() {
     $this->runMakefileTest('contrib-destination');
   }
@@ -109,37 +105,6 @@ class makeMakefileCase extends Drush_CommandTestCase {
     $this->runMakefileTest('ignore-checksums');
   }
 
-  /**
-   * Test .info file writing for git downloads.
-   */
-  function testInfoFileWritingGit() {
-    // Use the git-simple.make file.
-    $config = $this->getMakefile('git-simple');
-
-    $makefile_path = dirname(__FILE__) . '/makefiles';
-    $options = array('no-core' => NULL);
-    $makefile = $makefile_path . '/' . $config['makefile'];
-    $this->drush('make', array($makefile, UNISH_SANDBOX . '/test-build'), $options);
-
-    // Test cck_signup.info file.
-    $this->assertFileExists(UNISH_SANDBOX . '/test-build/sites/all/modules/cck_signup/cck_signup.info');
-    $contents = file_get_contents(UNISH_SANDBOX . '/test-build/sites/all/modules/cck_signup/cck_signup.info');
-    $this->assertContains('; Information added by drush on ' . date('Y-m-d'), $contents);
-    $this->assertContains('version = "2fe932c"', $contents);
-    $this->assertContains('project = "cck_signup"', $contents);
-
-    // Test context_admin.info file.
-    $this->assertFileExists(UNISH_SANDBOX . '/test-build/sites/all/modules/context_admin/context_admin.info');
-    $contents = file_get_contents(UNISH_SANDBOX . '/test-build/sites/all/modules/context_admin/context_admin.info');
-    $this->assertContains('; Information added by drush on ' . date('Y-m-d'), $contents);
-    $this->assertContains('version = "eb9f05e"', $contents);
-    $this->assertContains('project = "context_admin"', $contents);
-  }
-
-  function testMakeFileExtract() {
-    $this->runMakefileTest('file-extract');
-  }
-
   function getMakefile($key) {
     static $tests = array(
       'get' => array(
@@ -149,19 +114,19 @@ class makeMakefileCase extends Drush_CommandTestCase {
         'md5' => '4bf18507da89bed601548210c22a3bed',
         'options'  => array('no-core' => NULL),
       ),
+      'post' => array(
+        'name'     => 'Test POST retrieval of projects',
+        'makefile' => 'post.make',
+        'build'    => TRUE,
+        'md5' => '6a50624cbd65cc69011ae6c089ce298a',
+        'options'  => array('no-core' => NULL),
+      ),
       'git' => array(
         'name'     => 'GIT integration',
         'makefile' => 'git.make',
         'build'    => TRUE,
-        'md5' => '59a8e8f898e4f4d81349d3997498fee9',
-        'options'  => array('no-core' => NULL, 'no-gitinfofile' => NULL),
-      ),
-      'git-simple' => array(
-        'name' => 'Simple git integration',
-        'makefile' => 'git-simple.make',
-        'build' => TRUE,
-        'md5' => '6754a6814d4213326513ea750e6d5b65',
-        'options'  => array('no-core' => NULL, 'no-gitinfofile' => NULL),
+        'md5' => '79bea3200079c39a1cddce683ad1b60d',
+        'options'  => array('no-core' => NULL),
       ),
       'no-patch-txt' => array(
         'name'     => 'Test --no-patch-txt option',
@@ -188,7 +153,7 @@ class makeMakefileCase extends Drush_CommandTestCase {
         'name'     => 'Recursion',
         'makefile' => 'recursion.make',
         'build'    => TRUE,
-        'md5' => 'a0357e99e2506fbf8629ae89d2f44096',
+        'md5' => '1fb4b3b3f07d8ea7bacaf1c8c2c1e7a9',
         'options'  => array('no-core' => NULL),
       ),
       'svn' => array(
@@ -214,13 +179,6 @@ class makeMakefileCase extends Drush_CommandTestCase {
           'translations' => 'es,pt-br',
           'no-core' => NULL,
         ),
-      ),
-      'translations-inside' => array(
-        'name'     => 'Translation downloads inside makefile',
-        'makefile' => 'translations-inside.make',
-        'build'    => TRUE,
-        'md5' => '0566b12158e6fba7070b80714ea4019d',
-        'options'  => array(),
       ),
       'contrib-destination' => array(
         'name'     => 'Contrib-destination attribute',
@@ -257,13 +215,6 @@ class makeMakefileCase extends Drush_CommandTestCase {
         'build'    => TRUE,
         'md5' => 'f76ec174a775ce67f8e9edcb02336ef2',
         'options'  => array('no-core' => NULL, 'ignore-checksums' => NULL),
-      ),
-      'file-extract' => array(
-        'name'     => 'Extract archives',
-        'makefile' => 'file-extract.make',
-        'build'    => TRUE,
-        'md5' => '600fe82fba63b87c6d5de21c9e269a8a',
-        'options'  => array('no-core' => NULL),
       ),
     );
     return $tests[$key];

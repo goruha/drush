@@ -75,7 +75,7 @@ If no --destination is provided, then destination depends on the project type:
   - Profiles will be downloaded to profiles/ in your Drupal root.
   - Modules and themes will be downloaded to the site specific directory (sites/example.com/modules|themes) if available, or to sites/all/modules|themes.
   - If you're downloading drupal core or you are not running the command within a bootstrapped drupal site, the default location is the current directory.
-  - Drush commands will be relocated to @site_wide_location (if available) or ~/.drush. Relocation is determined once the project is downloaded by examining its content. Note you can provide your own function in a commandfile to determine the relocation of any project.", array('@site_wide_location' => drush_get_context('DRUSH_SITE_WIDE_COMMANDFILES')));
+  - Drush commands will be relocated to /usr/share/drush/commands (if available) or ~/.drush. Relocation is determined once the project is downloaded by examining its content. Note you can provide your own function in a commandfile to determine the relocation of any project.");
   }
 }
 
@@ -90,10 +90,7 @@ function pm_drush_command() {
   );
   $update_suboptions = array(
     'lock' => array(
-      'lock-message' => array(
-        'description' => 'A brief message explaining why a project is being locked; displayed during pm-updatecode.  Optional.',
-        'example-value' => 'message',
-      ),
+      'lock-message' => 'A brief message explaining why a project is being locked; displayed during pm-updatecode.  Optional.',
       'unlock' => 'Remove the persistent lock from the specified projects so that they may be updated again.',
     ),
   );
@@ -108,6 +105,7 @@ function pm_drush_command() {
       'skip' => 'Skip automatic downloading of libraries (c.f. devel).',
     ),
     'aliases' => array('en'),
+    'deprecated-aliases' => array('enable'),
   );
   $items['pm-disable'] = array(
     'description' => 'Disable one or more extensions (modules or themes).',
@@ -115,6 +113,7 @@ function pm_drush_command() {
       'extensions' => 'A list of modules or themes. You can use the * wildcard at the end of extension names to disable multiple matches.',
     ),
     'aliases' => array('dis'),
+    'deprecated-aliases' => array('disable'),
   );
   $items['pm-info'] = array(
     'description' => 'Show detailed info for one or more extensions (modules or themes).',
@@ -133,30 +132,27 @@ function pm_drush_command() {
     'arguments' => array(
       'modules' => 'A list of modules.',
     ),
+    'deprecated-aliases' => array('uninstall'),
   );
   $items['pm-list'] = array(
     'description' => 'Show a list of available extensions (modules and themes).',
     'callback arguments' => array(array(), FALSE),
     'options' => array(
-      'type' => array(
-        'description' => 'Filter by extension type. Choices: module, theme.',
-        'example-value' => 'module',
-      ),
-      'status' => array(
-        'description' => 'Filter by extension status. Choices: enabled, disabled and/or \'not installed\'. You can use multiple comma separated values. (i.e. --status="disabled,not installed").',
-        'example-value' => 'disabled',
-      ),
+      'type' => 'Filter by extension type. Choices: module, theme.',
+      'status' => 'Filter by extension status. Choices: enabled, disable and/or \'not installed\'. You can use multiple comma separated values. (i.e. --status="disabled,not installed").',
       'package' => 'Filter by project packages. You can use multiple comma separated values. (i.e. --package="Core - required,Other").',
       'core' => 'Filter out extensions that are not in drupal core.',
       'no-core' => 'Filter out extensions that are provided by drupal core.',
       'pipe' => 'Returns a whitespace delimited list of the names of the resulting extensions.',
     ),
     'aliases' => array('pml'),
+    'deprecated-aliases' => array('sm'),
   );
   $items['pm-refresh'] = array(
     'description' => 'Refresh update status information.',
     'drupal dependencies' => array($update),
     'aliases' => array('rf'),
+    'deprecated-aliases' => array('refresh'),
   );
   $items['pm-updatecode'] = array(
     'description' => 'Update Drupal core and contrib projects to latest recommended releases.',
@@ -172,13 +168,11 @@ function pm_drush_command() {
     ) + $update_options,
     'sub-options' => $update_suboptions,
     'aliases' => array('upc'),
+    'deprecated-aliases' => array('updatecode'),
     'topics' => array('docs-policy'),
     'engines' => array(
       'version_control',
       'package_handler',
-      'release_info' => array(
-        'add-options-to-command' => FALSE,
-      ),
     ),
   );
   // Merge all items from above.
@@ -186,7 +180,12 @@ function pm_drush_command() {
     'description' => 'Update Drupal core and contrib projects and apply any pending database updates (Same as pm-updatecode + updatedb).',
     'drupal dependencies' => array($update),
     'aliases' => array('up'),
+    'deprecated-aliases' => array('update'),
     'allow-additional-options' => array('pm-updatecode', 'updatedb'),
+    'engines' => array(
+      'version_control',
+      'package_handler',
+    ),
   );
   $items['pm-updatecode-postupdate'] = array(
     'description' => 'Notify of pending db updates.',
@@ -242,24 +241,21 @@ function pm_drush_command() {
       'projects' => 'A comma delimited list of drupal.org project names, with optional version. Defaults to \'drupal\'',
     ),
     'options' => array(
-      'destination' => array(
-        'description' => 'Path to which the project will be copied. If you\'re providing a relative path, note it is relative to the drupal root (if bootstrapped).',
-        'example-value' => 'path',
-      ),
+      'destination' => 'Path to which the project will be copied. If you\'re providing a relative path, note it is relative to the drupal root (if bootstrapped).',
       'use-site-dir' => 'Force to use the site specific directory. It will create the directory if it doesn\'t exist. If --destination is also present this option will be ignored.',
       'notes' => 'Show release notes after each project is downloaded.',
       'variant' => "Only useful for install profiles. Possible values: 'full', 'projects', 'profile-only'.",
       'select' => "Select the version to download interactively from a list of available releases.",
       'drupal-project-rename' => 'Alternate name for "drupal-x.y" directory when downloading Drupal project. Defaults to "drupal".',
-      'default-major' => array(
-        'description' => 'Specify the default major version of modules to download when there is no bootstrapped Drupal site.  Defaults to "7".',
-        'example-value' => '6',
-      ),
+      'default-major' => 'Specify the default major version of modules to download when there is no bootstrapped Drupal site.  Defaults to "7".',
       'skip' => 'Skip automatic downloading of libraries (c.f. devel).',
       'pipe' => 'Returns a list of the names of the extensions (modules and themes) contained in the downloaded projects.',
+      'cache' => 'Cache release XML and tarballs or git clones. Git clones use git\'s --reference option.',
+      'no-cache' => 'Negate a --cache option which might have been set in drushrc.php (for example). Tip: the no- prefix works for any option.',
     ),
     'bootstrap' => DRUSH_BOOTSTRAP_MAX,
     'aliases' => array('dl'),
+    'deprecated-aliases' => array('download'),
     'engines' => array(
       'version_control',
       'package_handler',
@@ -651,18 +647,16 @@ function drush_pm_list() {
   return $extension_info;
 }
 
-/**
- * Helper function for pm-enable.
- */
 function drush_pm_find_project_from_extension($extension) {
   $result =  drush_pm_lookup_extension_in_cache($extension);
 
   if (!isset($result)) {
-    drush_include_engine('release_info', 'updatexml');
     // If we can find info on a project that has the same name
     // as the requested extension, then we'll call that a match.
+    $release_info = drush_get_option('release-info', 'updatexml');
+    drush_include_engine('release_info', $release_info);
     $request = pm_parse_project_version(array($extension));
-    if (release_info_check_project($request[$extension], 'module')) {
+    if (release_info_check_project($request, 'module')) {
       $result = $extension;
     }
   }
@@ -1099,6 +1093,9 @@ function _pm_find_common_path($project_type, $extensions) {
  * Command callback. Show available releases for given project(s).
  */
 function drush_pm_releases() {
+  $release_info = drush_get_option('release-info', 'updatexml');
+  drush_include_engine('release_info', $release_info);
+
   if (!$requests = pm_parse_arguments(func_get_args(), FALSE)) {
     $requests = array('drupal');
   }
@@ -1136,6 +1133,9 @@ function drush_pm_releases() {
  * Command callback. Show release notes for given project(s).
  */
 function drush_pm_releasenotes() {
+  $release_info = drush_get_option('release-info', 'updatexml');
+  drush_include_engine('release_info', $release_info);
+
   if (!$requests = pm_parse_arguments(func_get_args(), FALSE)) {
     $requests = array('drupal');
   }
@@ -1182,6 +1182,11 @@ function drush_pm_updatecode_validate() {
   if (is_dir($path) && (realpath(drush_get_option('backup-dir', FALSE)) != $path)) {
     return drush_set_error('', dt('Backup directory !path found. It\'s a security risk to store backups inside the Drupal tree. Drush now uses by default ~/drush-backups. You need to move !path out of the Drupal tree to proceed. Note: if you know what you\'re doing you can explicitly set --backup-dir to !path and continue.', array('!path' => $path)));
   }
+
+  // Validate package-handler.
+  $package_handler = drush_get_option('package-handler', 'wget');
+  drush_include_engine('package_handler', $package_handler);
+  return package_handler_validate();
 }
 
 /**
@@ -1234,13 +1239,11 @@ function drush_pm_updatecode_postupdate() {
  * Return an array of arguments off a space and/or comma separated values. It also
  * lowercase arguments and optionally convert dashes to underscores.
  */
-function pm_parse_arguments($args, $dashes_to_underscores = TRUE, $lowercase = TRUE) {
+function pm_parse_arguments($args, $dashes_to_underscores = TRUE) {
   $arguments = _convert_csv_to_array($args);
   foreach ($arguments as $key => $argument) {
     $argument = ($dashes_to_underscores) ? strtr($argument, '-', '_') : $argument;
-    if ($lowercase) {
-      $arguments[$key] = strtolower($argument);
-    }
+    $arguments[$key] = strtolower($argument);
   }
   return $arguments;
 }
@@ -1321,59 +1324,28 @@ function pm_parse_project_version($requests) {
   return $requestdata;
 }
 
-
-/**
- * @defgroup engines Engine types
- * @{
- */
-
-/**
- * Implementation of hook_drush_engine_type_info().
- */
-function pm_drush_engine_type_info() {
-  return array(
-    'package_handler' => array(
-      'option' => 'package-handler',
-      'description' => 'Determine how to fetch projects from update service.',
-      'default' => 'wget',
-      'options' => array(
-        'cache' => 'Cache release XML and tarballs or git clones. Git clones use git\'s --reference option.',
-      ),
-    ),
-    'release_info' => array(
-      'add-options-to-command' => TRUE,
-    ),
-    'update_info' => array(
-    ),
-    'version_control' => array(
-      'option' => 'version-control',
-      'default' => 'backup',
-      'description' => 'Integrate with version control systems.',
-    ),
-  );
-}
-
 /**
  * Used by dl and updatecode commands to determine how to download/checkout new projects and acquire updates to projects.
  */
 function pm_drush_engine_package_handler() {
   return array(
     'wget' => array(
-      'description' => 'Download project packages using wget or curl.',
+      'options' => array(
+        'package-handler=wget' => 'Download project packages using wget or curl.',
+      ),
     ),
     'git_drupalorg' => array(
-      'description' => 'Use git.drupal.org to checkout and update projects.',
       'options' => array(
-        'gitusername' => 'Your git username as shown on user/[uid]/edit/git. Typically, this is set this in drushrc.php. Omitting this prevents users from pushing changes back to git.drupal.org.',
-        'gitsubmodule' => 'Use git submodules for checking out new projects. Existing git checkouts are unaffected, and will continue to (not) use submodules regardless of this setting.',
-        'gitcheckoutparams' => 'Add options to the `git checkout` command.',
-        'gitcloneparams' => 'Add options to the `git clone` command.',
-        'gitfetchparams' => 'Add options to the `git fetch` command.',
-        'gitpullparams' => 'Add options to the `git pull` command.',
-        'gitinfofile' => 'Inject version info into each .info file.',
+        'package-handler=git_drupalorg' => 'Use git.drupal.org to checkout and update projects.',
       ),
       'sub-options' => array(
-        'gitsubmodule' => array(
+        'package-handler=git_drupalorg' => array(
+          'gitusername' => 'Your git username as shown on user/[uid]/edit/git. Typically, this is set this in drushrc.php. Omitting this prevents users from pushing changes back to git.drupal.org.',
+          'gitsubmodule' => 'Use git submodules for checking out new projects. Existing git checkouts are unaffected, and will continue to (not) use submodules regardless of this setting.',
+          'gitcheckoutparams' => 'Add options to the `git checkout` command.',
+          'gitcloneparams' => 'Add options to the `git clone` command.',
+          'gitfetchparams' => 'Add options to the `git fetch` command.',
+          'gitpullparams' => 'Add options to the `git pull` command.',
           'gitsubmoduleaddparams' => 'Add options to the `git submodule add` command.',
         ),
       ),
@@ -1387,17 +1359,15 @@ function pm_drush_engine_package_handler() {
 function pm_drush_engine_release_info() {
   return array(
     'updatexml' => array(
-      'description' => 'Drush release info engine for update.drupal.org and compatible services.',
       'options' => array(
-        'source' => 'The base URL which provides project release history in XML. Defaults to http://updates.drupal.org/release-history.',
-        'dev' => 'Work with development releases solely.',
+        'release-info=updatexml' => 'Drush release info engine for update.drupal.org and compatible services.',
       ),
       'sub-options' => array(
-        'cache' => array(
-          'cache-duration-releasexml' => 'Expire duration (in seconds) for release XML. Defaults to 86400 (24 hours).',
-        ),
-        'select' => array(
-          'all' => 'Shows all available releases instead of a short list of recent releases.',
+        'release-info=updatexml' => array(
+          'source' => 'The base URL which provides project release history in XML. Defaults to http://updates.drupal.org/release-history.',
+          'dev' => 'Work with development releases solely.',
+          'all' => 'Shows all available releases instead of a short list of recent releases (for dl, useful only with --select).',
+          'cache-duration-releasexml' => 'Expire duration (in seconds) for release XML. Only applicable when --cache is set. Defaults to 86400 (24 hours).',
         ),
       ),
     ),
@@ -1410,23 +1380,29 @@ function pm_drush_engine_release_info() {
 function pm_drush_engine_version_control() {
   return array(
     'backup' => array(
-      'description' => 'Backup all project files before updates.',
       'options' => array(
-        'no-backup' => 'Do not perform backups.',
-        'backup-dir' => 'Specify a directory to backup projects into. Defaults to drush-backups within the home directory of the user running the command. It is forbidden to specify a directory inside your drupal root.',
+        'version-control=backup' => 'Default engine. Backup all project files before updates.',
+      ),
+      'sub-options' => array(
+        'version-control=backup' => array(
+          'no-backup' => 'Do not perform backups.',
+          'backup-dir' => 'Specify a directory to backup projects into. Defaults to drush-backups within the home directory of the user running the command. It is forbidden to specify a directory inside your drupal root.',
+        ),
       ),
     ),
     'bzr' => array(
       'signature' => 'bzr root %s',
-      'description' => 'Quickly add/remove/commit your project changes to Bazaar.',
       'options' => array(
-        'bzrsync' => 'Automatically add new files to the Bazaar repository and remove deleted files. Caution.',
-        'bzrcommit' => 'Automatically commit changes to Bazaar repository. You must also use the --bzrsync option.',
+        'version-control=bzr' => 'Quickly add/remove/commit your project changes to Bazaar.',
       ),
       'sub-options' => array(
+        'version-control=bzr' => array(
+          'bzrsync' => 'Automatically add new files to the Bazaar repository and remove deleted files. Caution.',
+          'bzrcommit' => 'Automatically commit changes to Bazaar repository. You must also usw the --bzrsync option.',
+        ),
         'bzrcommit' => array(
           'bzrmessage' => 'Override default commit message which is: Drush automatic commit. Project <name> <type> Command: <the drush command line used>',
-        ),
+        )
       ),
       'examples' => array(
         'drush dl cck --version-control=bzr --bzrsync --bzrcommit' =>  'Download the cck project and then add it and commit it to Bazaar.'
@@ -1434,20 +1410,22 @@ function pm_drush_engine_version_control() {
     ),
     'svn' => array(
       'signature' => 'svn info %s',
-      'description' => 'Quickly add/remove/commit your project changes to Subversion.',
       'options' => array(
-        'svnsync' => 'Automatically add new files to the SVN repository and remove deleted files. Caution.',
-        'svncommit' => 'Automatically commit changes to SVN repository. You must also using the --svnsync option.',
-        'svnstatusparams' => "Add options to the 'svn status' command",
-        'svnaddparams' => 'Add options to the `svn add` command',
-        'svnremoveparams' => 'Add options to the `svn remove` command',
-        'svnrevertparams' => 'Add options to the `svn revert` command',
-        'svncommitparams' => 'Add options to the `svn commit` command',
+        'version-control=svn' => 'Quickly add/remove/commit your project changes to Subversion.',
       ),
       'sub-options' => array(
-        'svncommit' => array(
-         'svnmessage' => 'Override default commit message which is: Drush automatic commit: <the drush command line used>',
+        'version-control=svn' => array(
+          'svnsync' => 'Automatically add new files to the SVN repository and remove deleted files. Caution.',
+          'svncommit' => 'Automatically commit changes to SVN repository. You must also using the --svnsync option.',
+          'svnstatusparams' => "Add options to the 'svn status' command",
+          'svnaddparams' => 'Add options to the `svn add` command',
+          'svnremoveparams' => 'Add options to the `svn remove` command',
+          'svnrevertparams' => 'Add options to the `svn revert` command',
+          'svncommitparams' => 'Add options to the `svn commit` command',
         ),
+        'svncommit' => array(
+          'svnmessage' => 'Override default commit message which is: Drush automatic commit: <the drush command line used>',
+        )
       ),
       'examples' => array(
         'drush [command] cck --svncommitparams=\"--username joe\"' =>  'Commit changes as the user \'joe\' (Quotes are required).'
@@ -1455,10 +1433,6 @@ function pm_drush_engine_version_control() {
     ),
   );
 }
-
-/**
- * @} End of "Engine types".
- */
 
 /**
  * Interface for version control systems.
@@ -1479,12 +1453,12 @@ interface drush_version_control {
  * specific directory.
  */
 function drush_pm_include_version_control($directory = '.') {
-  $engine_info = drush_get_engines('version_control');
+  $version_control_engines = drush_get_engines('version_control');
   $version_controls = drush_get_option('version-control', FALSE);
   // If no version control was given, use a list of defaults.
   if (!$version_controls) {
     // Backup engine is the last option.
-    $version_controls = array_reverse(array_keys($engine_info['engines']));
+    $version_controls = array_reverse(array_keys($version_control_engines));
   }
   else {
     $version_controls = array($version_controls);
@@ -1494,10 +1468,10 @@ function drush_pm_include_version_control($directory = '.') {
   $engine = FALSE;
   while (!$engine && count($version_controls)) {
     $version_control = array_shift($version_controls);
-    if (isset($engine_info['engines'][$version_control])) {
-      if (!empty($engine_info['engines'][$version_control]['signature'])) {
+    if (isset($version_control_engines[$version_control])) {
+      if (!empty($version_control_engines[$version_control]['signature'])) {
         drush_log(dt('Verifying signature for !vcs version control engine.', array('!vcs' => $version_control)), 'debug');
-        if (drush_shell_exec($engine_info['engines'][$version_control]['signature'], $directory)) {
+        if (drush_shell_exec($version_control_engines[$version_control]['signature'], $directory)) {
           $engine = $version_control;
         }
       }
@@ -1593,7 +1567,7 @@ function drush_pm_update_lock(&$projects, $projects_to_lock, $projects_to_unlock
 }
 
 function _drush_pm_extension_cache_file() {
-  return drush_get_context('DRUSH_PER_USER_CONFIGURATION') . "/drush-extension-cache.inc";
+  return drush_server_home() . "/.drush/drush-extension-cache.inc";
 }
 
 function _drush_pm_get_extension_cache() {
@@ -1755,44 +1729,4 @@ function drush_find_empty_directories($dir, $exclude = array()) {
     $empty_dirs[$dir] = $dir;
   }
   return $empty_dirs;
-}
-
-/**
- * Inject metadata into all .info files for a given project.
- *
- * @param string $project_dir
- *   The full path to the root directory of the project to operate on.
- * @param string $project_name
- *   The project machine name (AKA shortname).
- * @param string $version
- *   The version string to inject into the .info file(s).
- *
- * @return boolean
- *   TRUE on success, FALSE on any failures appending data to .info files.
- */
-function drush_pm_inject_info_file_metadata($project_dir, $project_name, $version) {
-  $info_files = drush_scan_directory($project_dir, '/.*\.info$/');
-  if (!empty($info_files)) {
-    // Construct the string of metadata to append to all the .info files.
-    // Taken straight from: http://drupalcode.org/project/drupalorg.git/blob/refs/heads/6.x-3.x:/drupalorg_project/plugins/release_packager/DrupalorgProjectPackageRelease.class.php#l192
-    $info = "\n\n; Information added by drush on " . date('Y-m-d') . "\n";
-    $info .= "version = \"$version\"\n";
-    // .info files started with 5.x, so we don't have to worry about version
-    // strings like "4.7.x-1.0" in this regular expression. If we can't parse
-    // the version (also from an old "HEAD" release), or the version isn't at
-    // least 6.x, don't add any "core" attribute at all.
-    $matches = array();
-    if (preg_match('/^((\d+)\.x)-.*/', $version, $matches) && $matches[2] >= 6) {
-      $info .= "core = \"$matches[1]\"\n";
-    }
-    $info .= "project = \"$project_name\"\n";
-    $info .= 'datestamp = "'. time() ."\"\n";
-    $info .= "\n";
-    foreach ($info_files as $info_file) {
-      if (!drush_file_append_data($info_file->filename, $info)) {
-        return FALSE;
-      }
-    }
-  }
-  return TRUE;
 }
