@@ -29,7 +29,19 @@ function drush_sitealias_check_arg() {
     drush_set_arguments($args);
     return TRUE;
   }
+  // Return false to indicate that no site alias was specified.
+  return FALSE;
+}
 
+function drush_sitealias_check_site_env() {
+  $site = drush_get_context('DRUSH_TARGET_SITE_ALIAS');
+  if (empty($site)) {
+    $site_env = drush_sitealias_site_get();
+    if (!empty($site_env) && (_drush_sitealias_set_context_by_name($site_env))) {
+      drush_set_context('DRUSH_TARGET_SITE_ALIAS', $site_env);
+      return TRUE;
+    }
+  }
   // Return false to indicate that no site alias was specified.
   return FALSE;
 }
@@ -59,16 +71,33 @@ function drush_sitealias_simplify_names($site_list) {
  * it is preferable to simply call drush_sitealias_get_record directly.
  *
  * @param $site_specifications
- *   An array of site specifications.  @see drush_sitealias_get_record().
+ *   One of:
+ *     A comma-separated list of site specifications: '@site1,@site2'
+ *     An array of site specifications: array('@site1','@site2')
+ *     An array of alias records:
+ *       array(
+ *         'site1' => array('root' => ...),
+ *         'site2' => array('root' => ...)
+ *       )
+ *   An array of site specifications.
+ *   @see drush_sitealias_get_record() for the format of site specifications.
  * @return
  *   An array of alias records
  */
 function drush_sitealias_resolve_sitespecs($site_specifications, $alias_path_context = NULL) {
   $result_list = array();
+  if (!is_array($site_specifications)) {
+    $site_specifications = explode(',', $site_specifications);
+  }
   if (!empty($site_specifications)) {
     foreach ($site_specifications as $site) {
-      $alias_record = drush_sitealias_get_record($site, $alias_path_context);
-      $result_list = array_merge($result_list, drush_sitealias_resolve_sitelist($alias_record));
+      if (is_array($site)) {
+        $result_list[] = $site;
+      }
+      else {
+        $alias_record = drush_sitealias_get_record($site, $alias_path_context);
+        $result_list = array_merge($result_list, drush_sitealias_resolve_sitelist($alias_record));
+      }
     }
   }
   return $result_list;
@@ -221,10 +250,9 @@ function _drush_sitealias_get_record($alias, $alias_context = NULL) {
   }
 
   if (!empty($alias_record)) {
-    // Load the drush config file if there is one associated with this alias
     if (!isset($alias_record['remote']) && !isset($alias_record['#loaded-config'])) {
       if (array_key_exists('root', $alias_record)) {
-        drush_sitealias_add_to_alias_path($alias_record['root']);
+        drush_sitealias_add_to_alias_path($alias_record['root'] . '/sites/all/drush');
       }
       $alias_site_dir = drush_sitealias_local_site_path($alias_record);
 
@@ -232,6 +260,7 @@ function _drush_sitealias_get_record($alias, $alias_context = NULL) {
         // Add the sites folder of this site to the alias search path list
         drush_sitealias_add_to_alias_path($alias_site_dir);
 
+        // Load the drush config file if there is one associated with this alias
         if (!isset($alias_record['config'])) {
           $alias_record['config'] = realpath($alias_site_dir . '/drushrc.php');
         }
@@ -302,7 +331,7 @@ function drush_sitealias_alias_path($alias_path_context = NULL) {
   // look for alias files there.
   $drupal_root = drush_get_context('DRUSH_SELECTED_DRUPAL_ROOT');
   if (isset($drupal_root)) {
-    $site_paths[] = $drupal_root;
+    $site_paths[] = drush_get_context('DRUSH_SELECTED_DRUPAL_SITES_ALL_DRUSH');
   }
   $alias_path = (array) drush_get_context('ALIAS_PATH', array());
   return array_unique(array_merge($context_path, $alias_path, $site_paths));
@@ -682,11 +711,11 @@ function _drush_sitealias_cache_alias($alias_name, $alias_record) {
   $cache["@$alias_name"] = $alias_record;
 
   // If the alias record points at a local site, make sure
-  // that both the drupal root and the site folder for that site
+  // that both the sites/all/drush and the site folder for that site
   // are added to the alias path, so that other alias files
   // stored in those locations become searchable.
-  if (!array_key_exists('remote-host', $alias_record) && array_key_exists('root', $alias_record)) {
-    drush_sitealias_add_to_alias_path($alias_record['root']);
+  if (!array_key_exists('remote-host', $alias_record) && !empty($alias_record['root'])) {
+    drush_sitealias_add_to_alias_path($alias_record['root'] . '/sites/all/drush');
     $site_dir = drush_sitealias_local_site_path($alias_record);
     if (isset($site_dir)) {
       drush_sitealias_add_to_alias_path($site_dir);
@@ -783,8 +812,7 @@ function drush_sitealias_get_db_spec(&$alias_record, $default_to_self = FALSE, $
  * @param $alias_record
  *   The full alias record to populate with database settings
  */
-function drush_sitealias_add_db_settings(&$alias_record)
-{
+function drush_sitealias_add_db_settings(&$alias_record) {
   $altered_record = FALSE;
 
   // If the alias record does not have a defined 'databases' entry,
@@ -868,13 +896,7 @@ function drush_sitealias_resolve_path_references(&$alias_record, $test_string = 
     // Optimization:  if we're already bootstrapped to the
     // site specified by $alias_record, then we can just
     // call _core_site_status_table() rather than use backend invoke.
-    if (drush_sitealias_is_bootstrapped_site($alias_record)) {
-      // Make sure that we are bootstrapped at least to the 'site'
-      // level, and include file.inc to insure that we have access
-      // to the %file path.
-      if (drush_bootstrap(DRUSH_BOOTSTRAP_DRUPAL_SITE)) {
-        include_once DRUSH_DRUPAL_CORE . '/includes/file.inc';
-      }
+    if (drush_sitealias_is_bootstrapped_site($alias_record) && drush_has_boostrapped(DRUSH_BOOTSTRAP_DRUPAL_FULL)) {
       $status_values = _core_site_status_table($project_list);
     }
     else {
@@ -1661,7 +1683,7 @@ function _drush_sitealias_preflight_path($path) {
  *   with the path to pass to rsync (including the machine specifier)
  *   in the 'evaluated-path' item.
  */
-function drush_sitealias_evaluate_path($path, &$additional_options, $local_only = FALSE, $os = NULL) {
+function drush_sitealias_evaluate_path($path, &$additional_options, $local_only = FALSE, $os = NULL, $command_specific_prefix = '') {
   $site_alias_settings = array();
   $path_aliases = array();
   $remote_user = '';
@@ -1680,6 +1702,9 @@ function drush_sitealias_evaluate_path($path, &$additional_options, $local_only 
     // not want to use it here.  The paths passed to rsync should always be
     // escaped per the LOCAL rules, without regard to the remote platform type.
     $site_alias_settings = drush_sitealias_get_record($alias);
+    if (!empty($command_specific_prefix)) {
+      drush_sitealias_command_default_options($site_alias_settings, $command_specific_prefix);
+    }
   }
 
   if (!empty($site_alias_settings)) {
@@ -1708,19 +1733,41 @@ function drush_sitealias_evaluate_path($path, &$additional_options, $local_only 
       $machine = "$remote_user$machine";
     }
   }
+  
+  // TOD:  The code below is a little rube-goldberg-ish, and needs to be
+  // reworked.  core-rsync will call this function twice: once to
+  // evaluate the destination, and then again to evaluate the source.  Things
+  // get odd with --exclude-paths, especially in conjunction with command-specific
+  // and the --exclude-files option.  @see testCommandSpecific()
 
   // If the --exclude-other-sites option is specified, then
-  // convert that into --include-path='%site' and --exclude-sites.
+  // convert that into --include-paths='%site' and --exclude-sites.
   if (drush_get_option_override($additional_options, 'exclude-other-sites', FALSE) && !drush_get_option_override($additional_options, 'exclude-other-sites-processed', FALSE, 'process')) {
-    $additional_options['include-path'] = '%site,' . drush_get_option_override($additional_options, 'include-path', '');
+    $include_path_option = drush_get_option_override($additional_options, 'include-paths', '');
+    $additional_options['include-paths'] = '%site';
+    if (!empty($include_path_option)) {
+      // We use PATH_SEPARATOR here because we are later going to explicitly explode() this variable using PATH_SEPARATOR.
+      $additional_options['include-paths'] .= PATH_SEPARATOR . $include_path_option;
+    }
     $additional_options['exclude-sites'] = TRUE;
     $additional_options['exclude-other-sites-processed'] = TRUE;
   }
+  else {
+    unset($additional_options['include-paths']);
+  }
   // If the --exclude-files option is specified, then
-  // convert that into --exclude-path='%files'.
+  // convert that into --exclude-paths='%files'.
   if (drush_get_option_override($additional_options, 'exclude-files', FALSE) && !drush_get_option_override($additional_options, 'exclude-files-processed', FALSE, 'process')) {
-    $additional_options['exclude-path'] = '%files,' . drush_get_option_override($additional_options, 'exclude-path', '');
+    $exclude_path_option = drush_get_option_override($additional_options, 'exclude-paths', '');
+    $additional_options['exclude-paths'] = '%files';
+    if (!empty($exclude_path_option)) {
+      // We use PATH_SEPARATOR here because we are later going to explicitly explode() this variable using PATH_SEPARATOR.
+      $additional_options['exclude-paths'] .= PATH_SEPARATOR . $exclude_path_option;
+    }
     $additional_options['exclude-files-processed'] = TRUE;
+  }
+  else {
+    unset($additional_options['exclude-paths']);
   }
 
   // If there was no site specification given, and the
@@ -1739,8 +1786,8 @@ function drush_sitealias_evaluate_path($path, &$additional_options, $local_only 
   // in it, so that resolution is only done if the path alias is referenced.
   // Therefore, we can concatenate without worrying too much about the structure of
   // this variable's contents.
-  $include_path = drush_get_option_override($additional_options, 'include-path', '');
-  $exclude_path = drush_get_option_override($additional_options, 'exclude-path', '');
+  $include_path = drush_get_option_override($additional_options, 'include-paths', '');
+  $exclude_path = drush_get_option_override($additional_options, 'exclude-paths', '');
   $resolve_path = $path . $include_path . $exclude_path;
   // Resolve path aliases such as %files, if any exist in the path
   if (!empty($resolve_path)) {
@@ -1780,10 +1827,10 @@ function drush_sitealias_evaluate_path($path, &$additional_options, $local_only 
   // Fill in path aliases in the path, the include path and the exclude path.
   $path = str_replace(array_keys($full_path_aliases), array_values($full_path_aliases), $path);
   if (!empty($include_path)) {
-    drush_set_option('include-path', str_replace(array_keys($path_aliases), array_values($path_aliases), $include_path));
+    drush_set_option('include-paths', str_replace(array_keys($path_aliases), array_values($path_aliases), $include_path));
   }
   if (!empty($exclude_path)) {
-    drush_set_option('exclude-path', str_replace(array_keys($path_aliases), array_values($path_aliases), $exclude_path));
+    drush_set_option('exclude-paths', str_replace(array_keys($path_aliases), array_values($path_aliases), $exclude_path));
   }
   // Next make the rsync path, which includes the machine
   // and path components together.
@@ -1855,4 +1902,38 @@ function drush_get_special_keys() {
     'site-aliases',
   );
   return $special_keys;
+}
+
+/**
+ * Read the tmp file where the persistent site setting is stored.
+ *
+ * @return string
+ *   A valid site specification.
+ */
+function drush_sitealias_site_get() {
+  if (($filename = drush_sitealias_get_envar_filename()) && file_exists($filename)) {
+    $site = file_get_contents($filename);
+    return $site;
+  }
+  else {
+    return FALSE;
+  }
+}
+
+/**
+ * Return the filename for the file tht stores the DRUPAL_SITE variable.
+ *
+ * @return string
+ *   Full path to tmp file.
+ */
+function drush_sitealias_get_envar_filename($filename_prefix = 'drush-drupal-site-') {
+  $tmp = getenv('TMPDIR') ? getenv('TMPDIR') : '/tmp/';
+
+  if (function_exists('posix_getppid') && is_dir($tmp) && is_writable($tmp)) {
+    $dir = $tmp . '/drush-env';
+    if (drush_mkdir($dir, FALSE)) {
+      return $dir . '/' . $filename_prefix . posix_getppid();
+    }
+  }
+  return FALSE;
 }

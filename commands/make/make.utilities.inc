@@ -271,18 +271,33 @@ function make_valid_url($url, $absolute = FALSE) {
   }
 }
 
-/*
+/**
+ * Find, and possibly create, a temporary directory.
+ *
+ * @param $set
+ *   Must be TRUE to create a directory.
+ * @param $directory
+ *   Pass in a directory to use. This is required if using any
+ *   concurrent operations.
  * @todo Merge with drush_tempdir().
  */
-function make_tmp($set = TRUE) {
+function make_tmp($set = TRUE, $directory = NULL) {
   static $tmp_dir;
+
+  if (isset($directory) && !isset($tmp_dir)) {
+    $tmp_dir = $directory;
+  }
+
   if (!isset($tmp_dir) && $set) {
-    $tmp_dir = sys_get_temp_dir();
+    $tmp_dir = drush_find_tmp();
     if (strrpos($tmp_dir, '/') == strlen($tmp_dir) - 1) {
       $tmp_dir .= 'make_tmp_' . time() . '_' . uniqid();
     }
     else {
       $tmp_dir .= '/make_tmp_' . time() . '_' . uniqid();
+    }
+    if (!drush_get_option('no-clean', FALSE)) {
+      drush_register_file_for_deletion($tmp_dir);
     }
     if (file_exists($tmp_dir)) {
       return make_tmp(TRUE);
@@ -387,12 +402,12 @@ function make_get_data($data_source) {
     $stdin = fopen('php://stdin', 'r');
     $data = '';
     $has_input = FALSE;
-  
+
     while ($line = fgets($stdin)) {
       $has_input = TRUE;
       $data .= $line;
     }
-  
+
     if ($has_input) {
       return $data;
     }
@@ -482,8 +497,6 @@ function make_http_request($url, $destination, $headers = array(), $method = 'GE
       $host = $uri['host'] . ($port != 443 ? ':'. $port : '');
       $fp = @fsockopen('ssl://'. $uri['host'], $port, $errno, $errstr, 20);
       break;
-    case 'file':
-      return _drush_make_request_local_file($uri['path'], $destination);
     default:
       $result->error = 'invalid schema '. $uri['scheme'];
       $result->code = -1003;
@@ -610,48 +623,5 @@ function make_http_request($url, $destination, $headers = array(), $method = 'GE
   }
 
   $result->code = $code;
-  return $result;
-}
-
-/**
- * Copies a local file from one location to another while responding as if it is a HTTP request.
- *
- * @see drush_make_http_request()
- *
- * @param
- *   $source The source location for the file to copy.
- * @param
- *   $target The target destination for the file.
- *
- * @return stdClass
- *   A mock HTTP response compatiable object.
- */
-function _drush_make_request_local_file($source, $target) {
-  $result = new stdClass();
-  $result->protocol = 'FILE';
-  $result->request = "COPY {$source} {$result->protocol}\r\n";
-  $result->headers = array();
-
-  if (!is_file($source)) {
-    $result->code = 404;
-    $result->error = 'No such file or directory';
-    $result->status_message = 'Not Found';
-  }
-  elseif (!is_readable($source)) {
-    $result->code = 403;
-    $result->error = 'Permission denied';
-    $result->status_message = 'Forbidden';
-  }
-  elseif (copy($source, $target)) {
-    $result->code = 200;
-    $result->status_message = 'OK';
-  }
-  // Something is wrong but we're not sure what.
-  else {
-    $result->code = 500;
-    $result->error = 'Oops!';
-    $result->status_message = 'Internal Server Error';
-  }
-
   return $result;
 }

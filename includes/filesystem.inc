@@ -163,7 +163,9 @@ function drush_copy_dir($src, $dest, $overwrite = FALSE) {
 function _drush_recursive_copy($src, $dest) {
   // all subdirectories and contents:
   if(is_dir($src)) {
-    drush_mkdir($dest);
+    if (!drush_mkdir($dest, TRUE)) {
+      return FALSE;
+    }
     $dir_handle = opendir($src);
     while($file = readdir($dir_handle)) {
       if ($file != "." && $file != "..") {
@@ -243,24 +245,46 @@ function drush_move_dir($src, $dest, $overwrite = FALSE) {
 
 /**
  * Cross-platform compatible helper function to recursively create a directory tree.
+ *
+ * @param path
+ *   Path to directory to create.
+ * @param required
+ *   If TRUE, then drush_mkdir will call drush_set_error on failure.
+ *
+ * Callers should *always* do their own error handling after calling drush_mkdir.
+ * If $required is FALSE, then a different location should be selected, and a final
+ * error message should be displayed if no usable locations can be found.
+ * @see drush_directory_cache().
+ * If $required is TRUE, then the execution of the current command should be
+ * halted if the required directory cannot be created.
  */
-function drush_mkdir($path) {
+function drush_mkdir($path, $required = TRUE) {
   if (!is_dir($path)) {
     if (drush_mkdir(dirname($path))) {
       if (@mkdir($path)) {
         return TRUE;
       }
       else {
+        if (!$required) {
+          return FALSE;
+        }
         if (is_writable(dirname($path))) {
-          drush_set_error('DRUSH_CREATE_DIR_FAILURE', dt('Unable to create !dir.', array('!dir' => preg_replace('/\w+\/\.\.\//', '', $path))));
+          return drush_set_error('DRUSH_CREATE_DIR_FAILURE', dt('Unable to create !dir.', array('!dir' => preg_replace('/\w+\/\.\.\//', '', $path))));
         }
         else {
-          drush_set_error('DRUSH_DESTINATION_NOT_WRITABLE', dt('Unable to write in !dir. Please check directory permissions.', array('!dir' => realpath(dirname($path)))));
+          return drush_set_error('DRUSH_PARENT_NOT_WRITABLE', dt('Unable to create !newdir in !dir. Please check directory permissions.', array('!newdir' => basename($path), '!dir' => realpath(dirname($path)))));
         }
       }
     }
+    return FALSE;
   }
   else {
+    if (!is_writable($path)) {
+      if (!$required) {
+        return FALSE;
+      }
+      return drush_set_error('DRUSH_DESTINATION_NOT_WRITABLE', dt('Directory !dir exists, but is not writable. Please check directory permissions.', array('!dir' => realpath($path))));
+    }
     return TRUE;
   }
 }
@@ -270,13 +294,16 @@ function drush_mkdir($path) {
  * The temporary file will be automatically deleted when drush exits.
  *
  * @param string $data
+ * @param string $suffix
+ *   Append string to filename. use of this parameter if is discouraged. @see
+ *   drush_tempnam().
  * @return string
  *   A path to the file.
  */
-function drush_save_data_to_temp_file($data) {
+function drush_save_data_to_temp_file($data, $suffix = NULL) {
   static $fp;
 
-  $file = drush_tempnam('drush_');
+  $file = drush_tempnam('drush_', NULL, $suffix);
   $fp = fopen($file, "w");
   fwrite($fp, $data);
   $meta_data = stream_get_meta_data($fp);
@@ -289,9 +316,10 @@ function drush_save_data_to_temp_file($data) {
 /**
  * Returns the path to a temporary directory.
  *
- * This is a custom version of file_directory_path().
+ * This is a custom version of Drupal's file_directory_path().
  * We can't directly rely on sys_get_temp_dir() as this
- * path is not valid in some setups for Mac.
+ * path is not valid in some setups for Mac, and we want to honor
+ * an environment variable (used by tests).
  */
 function drush_find_tmp() {
   static $temporary_directory;
@@ -338,7 +366,7 @@ function drush_find_tmp() {
     if (empty($temporary_directory)) {
       // If no directory has been found, create one in cwd.
       $temporary_directory = drush_cwd() . '/tmp';
-      drush_mkdir($temporary_directory);
+      drush_mkdir($temporary_directory, TRUE);
       if (!is_dir($directory)) {
         return drush_set_error('DRUSH_UNABLE_TO_CREATE_TMP_DIR', dt("Unable to create a temporary directory."));
       }
@@ -354,15 +382,20 @@ function drush_find_tmp() {
  * it will be deleted when drush exits.  Whenever possible,
  * drush_save_data_to_temp_file() should be used instead
  * of this function.
+ *
+ * @param string suffix
+ *   Append this suffix to the filename. Use of this parameter is discouraged as
+ *   it can break the guarantee of tempname(). See http://www.php.net/manual/en/function.tempnam.php#42052.
+ *   Originally added to support Oracle driver.
  */
-function drush_tempnam($pattern, $tmp_dir = NULL) {
+function drush_tempnam($pattern, $tmp_dir = NULL, $suffix = '') {
   if ($tmp_dir == NULL) {
     $tmp_dir = drush_find_tmp();
   }
   $tmp_file = tempnam($tmp_dir, $pattern);
   drush_register_file_for_deletion($tmp_file);
 
-  return $tmp_file;
+  return $tmp_file . $suffix;
 }
 
 /**
@@ -370,7 +403,7 @@ function drush_tempnam($pattern, $tmp_dir = NULL) {
  */
 function drush_tempdir() {
   $tmp_dir = drush_trim_path(drush_find_tmp());
-  $tmp_dir .= '/' . 'drush_tmp_' . time();
+  $tmp_dir .= '/' . 'drush_tmp_' . uniqid(time() . '_');
 
   drush_mkdir($tmp_dir);
   drush_register_file_for_deletion($tmp_dir);
@@ -461,7 +494,7 @@ function drush_prepare_backup_dir($subdir = NULL) {
     return drush_set_error('DRUSH_PM_BACKUP_FAILED', dt('It\'s not allowed to store backups inside the Drupal root directory.'));
   }
   if (!file_exists($backup_parent)) {
-    if (!drush_mkdir($backup_parent)) {
+    if (!drush_mkdir($backup_parent, TRUE)) {
       return drush_set_error('DRUSH_PM_BACKUP_FAILED', dt('Unable to create backup directory !dir.', array('!dir' => $backup_parent)));
     }
   }
@@ -469,7 +502,9 @@ function drush_prepare_backup_dir($subdir = NULL) {
     return drush_set_error('DRUSH_PM_BACKUP_FAILED', dt('Backup directory !dir is not writable.', array('!dir' => $backup_parent)));
   }
 
-  drush_mkdir($backup_dir);
+  if (!drush_mkdir($backup_dir, TRUE)) {
+    return FALSE;
+  }
   return $backup_dir;
 }
 
@@ -558,6 +593,29 @@ function drush_scan_directory($dir, $mask, $nomask = array('.', '..', 'CVS'), $c
   }
 
   return $files;
+}
+
+/**
+ * Simple helper function to append data to a given file.
+ *
+ * @param string $file
+ *   The full path to the file to append the data to.
+ * @param string $data
+ *   The data to append.
+ *
+ * @return boolean
+ *   TRUE on success, FALSE in case of failure to open or write to the file.
+ */
+function drush_file_append_data($file, $data) {
+  if (!$fd = fopen($file, 'a+')) {
+    drush_set_error(dt("ERROR: fopen(@file, 'ab') failed", array('@file' => $file)));
+    return FALSE;
+  }
+  if (!fwrite($fd, $data)) {
+    drush_set_error(dt("ERROR: fwrite(@file) failed", array('@file' => $file)) . '<pre>' . $data);
+    return FALSE;
+  }
+  return TRUE;
 }
 
 /**

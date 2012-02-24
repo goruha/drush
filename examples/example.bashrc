@@ -26,10 +26,12 @@
 #       sa               - drush site-alias
 #       sa               - drush site-alias --local (show local site aliases)
 #       st               - drush core-status
+#       use              - drush site-set
 #
 # Aliases for drush commands that work on the current drupal site:
 #
 #       cc               - drush cache-clear
+#       cca              - drush cache-clear all
 #       dis              - drush pm-disable
 #       en               - drush pm-enable
 #       i                - drush pm-info
@@ -39,6 +41,7 @@
 #       up               - drush pm-update
 #       upc              - drush pm-updatecode
 #       updb             - drush uptatedb
+#       q                - drush sql-query
 #
 # Provides several common shell commands to work better with drush:
 #
@@ -81,9 +84,11 @@ alias ev='drush php-eval'
 alias sa='drush site-alias'
 alias lsa='drush site-alias --local'
 alias st='drush core-status'
+alias use='drush site-set'
 
 # Aliases for drush commands that work on the current drupal site
 alias cc='drush cache-clear'
+alias cca='drush cache-clear all'
 alias dis='drush pm-disable'
 alias en='drush pm-enable'
 alias pmi='drush pm-info'
@@ -93,6 +98,7 @@ alias unin='drush pm-uninstall'
 alias up='drush pm-update'
 alias upc='drush pm-updatecode'
 alias updb='drush uptatedb'
+alias q='drush sql-query'
 
 # Overrides for standard shell commands. Uncomment to enable.  Alias
 # cd='cdd' if you want to be able to use cd @remote to ssh to a
@@ -107,14 +113,14 @@ alias updb='drush uptatedb'
 # Find the drush executable and test it.
 d=$(which drush)
 # If no program is found try an alias.
-if [ -z $d ]; then
+if [ -z "$d" ]; then
   d=$(alias drush | cut -f 2 -d '=' | sed "s/'//g")
 fi
 # Test that drush is an executable.
-[ -x $d ] || exit 0
+[ -x "$d" ] || exit 0
 
 # If the file found is a symlink, resolve to the actual file.
-if [ "$(stat $d --printf="%F")" == "symbolic link" ] ; then
+if [ -h "$d" ] ; then
   # Change `readlink` to `readlink -f` if your drush is a symlink to a symlink. -f is unavailable on OSX's readlink.
   d=$(readlink $d)
 fi
@@ -122,11 +128,8 @@ fi
 # Get the directory that drush is stored in.
 d="${d%/*}"
 # If we have found drush.complete.sh, then source it.
-if [ -f $d/drush.complete.sh ] ; then
-  . $d/drush.complete.sh
-  alias drush_complete='complete'
-else
-  alias drush_complete='echo'
+if [ -f "$d/drush.complete.sh" ] ; then
+  . "$d/drush.complete.sh"
 fi
 
 # Create an alias for every drush site alias.  This allows
@@ -134,7 +137,9 @@ fi
 for a in $(drush sa); do
   alias $a="drush $a"
   ## Register another completion function for every alias to drush.
-  drush_complete -o nospace -F _drush_completion $a > /dev/null
+  if [ -n "`type _drush_completion 2>/dev/null`" ] ; then
+    complete -o nospace -F _drush_completion $a > /dev/null
+  fi
 done
 
 # We extend the cd command to allow convenient
@@ -206,7 +211,7 @@ function cdd() {
 # Also works on remote sites, though.
 function gitd() {
   s="$1"
-  if [ -n "$s" ] && [ ${s:0:1} == "@" ] || [ ${a:0:1} == "%" ]
+  if [ -n "$s" ] && [ ${s:0:1} == "@" ] || [ ${s:0:1} == "%" ]
   then
     d="$(drush drupal-directory $s 2>/dev/null)"
     $(drush sa ${s%%:*} --component=remote-host > /dev/null 2>&1)
@@ -254,7 +259,7 @@ function lsd() {
   fi
 }
 
-# Copy from or two @site or @site:%files, etc; local sites only.
+# Copy files from or to @site or @site:%files, etc; local sites only.
 function cpd() {
   p=()
   for a in "$@" ; do
