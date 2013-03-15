@@ -198,6 +198,9 @@ class DrushMakeProject {
    */
   protected function preprocessLocalFileUrl($url) {
     print $url;
+    if (substr($url, 0, 9) == 'local:///') {
+      $url = substr($url, 9);
+    }
     if (!_drush_is_url($url) && !drush_is_absolute_path($url)) {
       $url = $this->make_directory . '/' . $url;
     } elseif (substr($url, 0, 8) == 'file:///') {
