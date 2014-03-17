@@ -245,6 +245,7 @@ function drush_global_options_command($brief = FALSE) {
   );
   $global_options_help += drush_command_defaults('global-options', 'global_options', __FILE__);
   drush_command_invoke_all_ref('drush_help_alter', $global_options_help);
+  ksort($global_options_help['options']);
 
   return $global_options_help;
 }
@@ -348,7 +349,7 @@ function drush_help_visible($command_categories) {
   return $all;
 }
 
-/*
+/**
  * Print CLI table or HTML table listing all commands.
  */
 function drush_help_listing_print($command_categories, $format) {
@@ -376,7 +377,7 @@ function drush_help_listing_print($command_categories, $format) {
   }
 }
 
-/*
+/**
  * Organize commands into categories
  */
 function drush_help_categorize($implemented) {

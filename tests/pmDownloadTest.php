@@ -22,16 +22,16 @@ class pmDownloadCase extends Drush_CommandTestCase {
     $devel_options = array(
       'cache' => NULL,
       'skip' => NULL, // No FirePHP
-      'invoke' => NULL, // Invoke from script: do not verify options
+      'strict' => 0, // Invoke from script: do not verify options
     );
 
-    // Default to sites/all.
+    // Default to Drupal sitewide directory.
     $options = array(
       'root' => $root,
       'uri' => $uri,
     ) + $devel_options;
     $this->drush('pm-download', array('devel'), $options);
-    $this->assertFileExists($root . '/sites/all/modules/devel/README.txt');
+    $this->assertFileExists($root . '/' . $this->drupalSitewideDirectory() . '/modules/devel/README.txt');
 
     //  --use-site-dir
     // Expand above $options.

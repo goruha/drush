@@ -194,11 +194,11 @@ function drush_bootstrap($phase, $phase_max = FALSE) {
       foreach ($errors as $code => $message) {
         drush_set_error($code, $message);
       }
+      break;
     }
     unset($phases[$phase_index++]);
   }
   drush_set_context('DRUSH_BOOTSTRAPPING', FALSE);
-
   return !drush_get_error();
 }
 
@@ -428,7 +428,7 @@ function _drush_bootstrap_drush_validate() {
  */
 function _drush_bootstrap_drush() {
   // Create an alias '@none' to represent no Drupal site
-  _drush_sitealias_cache_alias('none', array('root' => '', 'uri' => ''));
+  _drush_sitealias_cache_alias('@none', array('root' => '', 'uri' => ''));
 
   // Set the terminal width, used for wrapping table output.
   // Normally this is exported using tput in the drush script.
@@ -582,7 +582,7 @@ function _drush_bootstrap_select_drupal_site() {
 
   if (!empty($drupal_root) && !empty($uri)) {
     // Create an alias '@self'
-    _drush_sitealias_cache_alias('self', array('root' => $drupal_root, 'uri' => $uri));
+    _drush_sitealias_cache_alias('@self', array('root' => $drupal_root, 'uri' => $uri));
   }
 }
 
@@ -679,14 +679,14 @@ function _drush_bootstrap_drupal_root_validate() {
  */
 function _drush_bootstrap_drupal_root() {
   $drupal_root = drush_set_context('DRUSH_DRUPAL_ROOT', drush_bootstrap_value('drupal_root'));
-  define('DRUPAL_ROOT', $drupal_root);
-
   chdir($drupal_root);
-  require_once DRUPAL_ROOT . '/' . DRUSH_DRUPAL_SIGNATURE;
   $version = drush_drupal_version();
   $major_version = drush_drupal_major_version();
 
-  if ($major_version < 6) {
+  if ($major_version <= 7) {
+    define('DRUPAL_ROOT', $drupal_root);
+  }
+  elseif ($major_version <= 5) {
     drush_set_error('DRUSH_DRUPAL_VERSION_UNSUPPORTED', dt('Drush !drush_version does not support Drupal !major_version.', array('!drush_version' => DRUSH_VERSION, '!major_version' => $major_version)));
   }
 
@@ -749,6 +749,10 @@ function _drush_bootstrap_drupal_site_validate() {
       'port' => NULL,
     );
     $_SERVER['HTTP_HOST'] = $drupal_base_url['host'];
+
+    if ($drupal_base_url['scheme'] == 'https') {
+      $_SERVER['HTTPS'] = 'on';
+    }
 
     if ($drupal_base_url['port']) {
       $_SERVER['HTTP_HOST'] .= ':' . $drupal_base_url['port'];
@@ -834,7 +838,7 @@ function _drush_bootstrap_drupal_configuration() {
     'dev_query' => FALSE, // Force Drupal6 not to store queries since we are not outputting them.
     'cron_safe_threshold' => 0, // Don't run poormanscron during Drush request (D7+).
   );
-  // Avoid MTimeProtected grief in D8+. See http://drupal.org/node/1899842. If you really don't 
+  // Avoid MTimeProtected grief in D8+. See http://drupal.org/node/1899842. If you really don't
   // want this override, set different values using a drushrc.php by passing different values.
   $override['php_storage']['default'] = array(
     'class' => 'Drupal\Component\PhpStorage\FileReadOnlyStorage',
@@ -945,6 +949,21 @@ function _drush_bootstrap_drupal_full() {
     module_implements('watchdog', FALSE, TRUE);
   }
 
+  // Write correct install_profile to cache as needed. Used by _drush_find_commandfiles().
+  $cid = drush_cid_install_profile();
+  if ($cached_install_profile = drush_cache_get($cid)) {
+    // We have a cached profile. Check it for correctness and save new value if needed.
+    $install_profile = drush_drupal_major_version() >= 7 ? drupal_get_profile() : variable_get('install_profile', 'standard');
+    if ($cached_install_profile->data != $install_profile) {
+      drush_cache_set($cid, $install_profile);
+    }
+  }
+  else {
+    // No cached entry so write to cache.
+    $install_profile = drush_drupal_major_version() >= 7 ? drupal_get_profile() : variable_get('install_profile', 'standard');
+    drush_cache_set($cid, $install_profile);
+  }
+
   _drush_log_drupal_messages();
 }
 
@@ -1015,8 +1034,8 @@ function drush_bootstrap_prepare() {
   // PHP_VERSION, such as runserver/runserver.drush.inc, and also
   // adjust _drush_environment_check_php_ini() and the php_prohibited_options
   // list in the drush script.  See http://drupal.org/node/1748228
-  define('DRUSH_MINIMUM_PHP', '5.3.5');
-  if (version_compare(phpversion(), DRUSH_MINIMUM_PHP) < 0) {
+  define('DRUSH_MINIMUM_PHP', '5.3.3');
+  if (version_compare(phpversion(), DRUSH_MINIMUM_PHP) < 0 && !getenv('DRUSH_NO_MIN_PHP')) {
     return drush_set_error('DRUSH_REQUIREMENTS_ERROR', dt('Your command line PHP installation is too old. Drush requires at least PHP !version.', array('!version' => DRUSH_MINIMUM_PHP)));
   }
 

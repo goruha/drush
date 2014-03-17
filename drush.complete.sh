@@ -1,5 +1,3 @@
-#!/bin/bash
-
 # BASH completion script for Drush.
 #
 # Place this in your /etc/bash_completion.d/ directory or source it from your
@@ -29,8 +27,8 @@ _drush_completion() {
   # The '< /dev/null' is a work around for a bug in php libedit stdin handling.
   # Note that libedit in place of libreadline in some distributions. See:
   # https://bugs.launchpad.net/ubuntu/+source/php5/+bug/322214
-  COMPREPLY=( $(drush --early=includes/complete.inc "${COMP_WORDS[@]}" < /dev/null) )
+  COMPREPLY=( $(drush --early=includes/complete.inc "${COMP_WORDS[@]}" < /dev/null 2> /dev/null) )
 }
 
 # Register our completion function. We include common short aliases for Drush.
-complete -o nospace -F _drush_completion d dr drush drush5 drush6 drush6 drush.php
+complete -o bashdefault -o default -o nospace -F _drush_completion d dr drush drush5 drush6 drush6 drush.php

@@ -108,10 +108,9 @@ function drush_early_complete() {
   }
   // Set up as if we were running the command, and attempt to parse.
   $argv = drush_complete_process_argv();
-  $set_sitealias = drush_sitealias_get_record('@self');
-  $set_sitealias_name = NULL;
-  if (!empty($set_sitealias['#name'])) {
-    $set_sitealias_name = $set_sitealias['#name'];
+  if ($alias = drush_get_context('DRUSH_TARGET_SITE_ALIAS')) {
+    $set_sitealias_name = $alias;
+    $set_sitealias = drush_sitealias_get_record($alias);
   }
 
   // Arguments have now had site-aliases and options removed, so we take the
@@ -149,7 +148,7 @@ function drush_early_complete() {
       $completions += drush_hyphenate_options(drush_complete_match($last_word, drush_complete_get('options')));
     }
     else {
-      if (!$set_sitealias_name) {
+      if (empty($set_sitealias_name)) {
         // Include site alias completions.
         $completions += drush_complete_match($last_word, drush_complete_get('site-aliases'));
       }
@@ -290,44 +289,44 @@ function drush_complete_match($last_word, $values) {
  */
 function drush_complete_match_file($last_word, $files) {
   $return = array();
-  $firstchar = '';
-  $full_paths = TRUE;
-  if (isset($last_word) && $last_word[0] == '~') {
+  if ($last_word[0] == '~') {
     // Complete does not do tilde expansion, so we do it here.
-    $parts = explode('/', $last_word);
     // We shell out (unquoted) to expand the tilde.
-    drush_shell_exec('echo ' . $parts[0]);
-    $output = drush_shell_exec_output();
-    $parts[0] = $output[0];
-    $last_word = implode('/', $parts);
+    drush_shell_exec('echo ' . $last_word);
+    return drush_shell_exec_output();
   }
+
+  $dir = '';
+  if (substr($last_word, -1) == '/' && is_dir($last_word)) {
+    // If we exactly match a trailing directory, then we use that as the base
+    // for the listing. We only do this if a trailing slash is present, since at
+    // this stage it is still possible there are other directories that start
+    // with this string.
+    $dir = $last_word;
+  }
+  else {
+    // Otherwise we discard the last part of the path (this is matched against
+    // the list later), and use that as our base.
+    $dir = dirname($last_word);
+    if (empty($dir) || $dir == '.' && $last_word != '.' && substr($last_word, 0, 2) != './') {
+      // We are looking at the current working directory, so unless the user is
+      // actually specifying a leading dot we leave the path empty.
+      $dir = '';
+    }
+    else {
+      // In all other cases we need to add a trailing slash.
+      $dir .= '/';
+    }
+  }
+
   foreach ($files as $spec) {
     // We always include GLOB_MARK, as an easy way to detect directories.
     $flags = GLOB_MARK;
     if (isset($spec['flags'])) {
       $flags = $spec['flags'] | GLOB_MARK;
     }
-    $listing = glob($last_word . $spec['pattern'], $flags);
-    foreach ($listing as $item) {
-      // Detect if the initial characters of the file/dirs to be listing differ.
-      // If they do, we return a list of just their names. If they all have the
-      // same first character we return full paths, to prevent the shell
-      // replacing the current path with just the matching character(s).
-      $char = $item[strrpos($last_word, '/') + 1];
-      if (empty($firstchar)) {
-        $firstchar = $char;
-      }
-      else if ($firstchar !== $char) {
-        $full_paths = FALSE;
-      }
-      $return[] = $item;
-    }
-  }
-  // If we don't need to return full paths, shorten them appropriately.
-  if ($full_paths == FALSE) {
-    foreach ($return as $id => $item) {
-      $return[$id] = substr($return[$id], strrpos($last_word, '/') + 1);
-    }
+    $listing = glob($dir . $spec['pattern'], $flags);
+    $return = array_merge($return, drush_complete_match($last_word, $listing));
   }
   // If we are returning a single item (which will become part of the final
   // command), we need to use the full path, and we need to escape it
@@ -335,12 +334,43 @@ function drush_complete_match_file($last_word, $files) {
   if (count($return) == 1) {
     // Escape common shell metacharacters (we don't use escapeshellarg as it
     // single quotes everything, even when unnecessary).
+    $item = array_pop($return);
     $item = preg_replace('/[ |&;()<>]/', "\\\\$0", $item);
     if (substr($item, -1) !== '/') {
       // Insert a space after files, since the argument is complete.
       $item = $item . ' ';
     }
     $return = array($item);
+  }
+  else {
+    $firstchar = TRUE;
+    if ($last_word[0] == '/') {
+      // If we are working with absolute paths, we need to check if the first
+      // character of all the completions matches. If it does, then we pass a
+      // full path for each match, so the shell completes as far as it can,
+      // matching the behaviour with relative paths.
+      $pos = strlen($last_word);
+      foreach ($return as $id => $item) {
+        if ($item[$pos] !== $return[0][$pos]) {
+          $firstchar = FALSE;
+          continue;
+        }
+      }
+    }
+    foreach ($return as $id => $item) {
+      // For directories we leave the path alone.
+      $slash_pos = strpos($last_word, '/');
+      if ($slash_pos === 0 && $firstchar) {
+        // With absolute paths where completions share initial characters, we
+        // pass in a resolved path.
+        $return[$id] = realpath($item);
+      }
+      else if ($slash_pos !== FALSE && $dir != './') {
+        // For files, we pass only the file name, ignoring the false match when
+        // the user is using a single dot relative path.
+        $return[$id] = basename($item);
+      }
+    }
   }
   return $return;
 }
@@ -523,7 +553,12 @@ function drush_complete_cache_cid($type, $command = NULL) {
   // the possibility of cache misses/ but they should be rare, since sites are
   // normally referred to the same way (e.g. a site alias, or using the current
   // directory), at least within a single command completion session.
-  $root = drush_get_option(array('r', 'root'), drush_locate_root());
-  $site = drush_get_option(array('l', 'uri'), drush_site_path());
+  // We also static cache them, since we may get differing results after
+  // bootstrap, which prevents the caches from being found on the next call.
+  static $root, $site;
+  if (empty($root)) {
+    $root = drush_get_option(array('r', 'root'), drush_locate_root());
+    $site = drush_get_option(array('l', 'uri'), drush_site_path());
+  }
   return drush_get_cid('complete', array(), array($type, $command, $root, $site));
 }

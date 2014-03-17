@@ -147,13 +147,17 @@
  *     a tunneled port number, put the actual database port number
  *     used on the remote machine in the 'remote-port' setting.
  * - 'remote-host': The fully-qualified domain name of the remote system
- *     hosting the Drupal instance.  The remote-host option must be
- *     omitted for local sites, as this option controls whether or not
+ *     hosting the Drupal instance. **Important Note: The remote-host option
+ *     must be omitted for local sites, as this option controls whether or not
  *     rsync parameters are for local or remote machines.
  * - 'remote-user': The username to log in as when using ssh or rsync.
  * - 'os': The operating system of the remote server.  Valid values
- *     are 'Windows' and 'Linux'.  Default value is PHP_OS if 'remote-host'
- *     is not set, and 'Linux' (or $options['remote-os']) if it is.
+ *     are 'Windows' and 'Linux'. Be sure to set this value for all remote 
+ *     aliases because the default value is PHP_OS if 'remote-host'
+ *     is not set, and 'Linux' (or $options['remote-os']) if it is. Therefore,
+ *     if you set a 'remote-host' value, and your remote OS is Windows, if you
+ *     do not set the 'OS' value, it will default to 'Linux' and could cause
+ *     unintended consequences, particularly when running 'drush sql-sync'.
  * - 'ssh-options': If the target requires special options, such as a non-
  *     standard port, alternative identity file, or alternative
  *     authentication method, ssh-options can contain a string of extra
@@ -185,7 +189,7 @@
  *     '%files': Path to 'files' directory.  This will be looked up if not specified.
  *     '%root': A reference to the Drupal root defined in the 'root' item
  *       in the site alias record.
- * - 'php': path to custom php interpreter, defaults to /usr/bin/php
+ * - 'php': path to custom php interpreter. Windows support limited to Cygwin.
  * - 'php-options': commandline options for php interpreter, you may
  *   want to set this to '-d error_reporting="E_ALL^E_DEPRECATED"'
  * - 'variables' : An array of name/value pairs which override Drupal variables/config.
@@ -211,6 +215,42 @@
  *   in fact are removed before making a backend invoke call (for example). These
  *   kinds of values are useful in conjunction with shell aliases.  See
  *   `drush topic docs-shell-aliases` for more information on this.
+ * - rsync command options have specific requirements in order to
+ *   be passed through by Drush. See the comments on the sample below:
+ *
+ *       'command-specific' => array (
+ *         'core-rsync' => array (
+ *
+ *           // single-letter rsync options are placed in the 'mode' key
+ *           // instead of adding '--mode=rultvz' to drush rsync command.
+ *           'mode' => 'rultvz',
+ *
+ *           // multi-letter rsync options without values must be set to
+ *           // TRUE or NULL to work (i.e. setting $VALUE to 1, 0, or ''
+ *           // will not work).
+ *           'delete' => TRUE,
+ *
+ *           // wrapping an option's value in "" preserves inner '' on output;
+ *           // but is not always required.
+ *           'exclude' => "'*.gz'",
+ *
+ *           // cannot add multiple options of same key; each key overwrites
+ *           // the previous key's value. This 'exclude' option will overwrite
+ *           // the previous one above.
+ *           'exclude' => '*.sql',
+ *
+ *           // if you need multiple exludes, use an rsync exclude file
+ *           'exclude-from' => "'/etc/rsync/exclude.rules'",
+ *
+ *           // filter options with white space must be wrapped in "" to preserve
+ *           // the inner ''.
+ *           'filter' => "'exclude *.sql'",
+ *
+ *           // if you need multple filter options, see rsync merge-file options
+ *           'filter' => "'merge /etc/rsync/default.rules'",
+ *         ),
+ *       ),
+ *
  * Some examples appear below.  Remove the leading hash signs to enable.
  */
 #$aliases['stage'] = array(
@@ -219,6 +259,7 @@
 #    'db-url' => 'pgsql://username:password@dbhost.com:port/databasename',
 #    'remote-host' => 'mystagingserver.myisp.com',
 #    'remote-user' => 'publisher',
+#    'os' => 'Linux',
 #    'path-aliases' => array(
 #      '%drush' => '/path/to/drush',
 #      '%drush-script' => '/path/to/drush/drush',
@@ -262,6 +303,7 @@
 #$aliases['server'] = array(
 #    'remote-host' => 'mystagingserver.myisp.com',
 #    'remote-user' => 'publisher',
+#    'os' => 'Linux',
 #  );
 #$aliases['live'] = array(
 #    'parent' => '@server,@dev',

@@ -1,6 +1,6 @@
 <?php
 
-/*
+/**
 * @file
 *  We choose to test the backend system in two parts.
 *    - Origin. These tests assure that we are generate a proper ssh command
@@ -16,7 +16,7 @@
 */
 
 class backendCase extends Drush_CommandTestCase {
-  // Test to insure that calling drush_invoke_process with 'dispatch-using-alias'
+  // Test to insure that calling drush_invoke_process() with 'dispatch-using-alias'
   // will build a command string that uses the alias instead of --root and --uri.
   function testDispatchUsingAlias() {
     $aliasPath = UNISH_SANDBOX . '/aliases';
@@ -24,7 +24,7 @@ class backendCase extends Drush_CommandTestCase {
     $aliasFile = $aliasPath . '/foo.aliases.drushrc.php';
     $aliasContents = <<<EOD
   <?php
-  // Writtne by Unish. This file is safe to delete.
+  // Written by Unish. This file is safe to delete.
   \$aliases['dev'] = array('root' => '/fake/path/to/root', 'uri' => 'default');
 EOD;
     file_put_contents($aliasFile, $aliasContents);
@@ -50,7 +50,7 @@ EOD;
     $this->assertEquals(array_diff(array_values($argDifference), array('--root=/fake/path/to/root', '--uri=default')), array());
   }
 
-  /*
+  /**
    * Covers the following origin responsibilities.
    *   - A remote host is recognized in site specification.
    *   - Generates expected ssh command.
@@ -58,15 +58,15 @@ EOD;
    * General handling of site aliases will be in sitealiasTest.php.
    */
   function testOrigin() {
-    $exec = sprintf('%s %s version arg1 arg2 --simulate --ssh-options=%s | grep ssh', UNISH_DRUSH, self::escapeshellarg('user@server/path/to/drupal#sitename'), self::escapeshellarg('-i mysite_dsa'));
+    $exec = sprintf('%s %s version arg1 arg2 --simulate --ssh-options=%s 2>/dev/null | grep ssh', UNISH_DRUSH, self::escapeshellarg('user@server/path/to/drupal#sitename'), self::escapeshellarg('-i mysite_dsa'));
     $this->execute($exec);
-    $bash = $this->escapeshellarg('drush  --invoke --simulate --uri=sitename --root=/path/to/drupal  version arg1 arg2 2>&1');
+    $bash = $this->escapeshellarg('drush  --uri=sitename --root=/path/to/drupal  version arg1 arg2 2>&1');
     $expected = "Simulating backend invoke: ssh -i mysite_dsa user@server $bash 2>&1";
     $output = $this->getOutput();
     $this->assertEquals($expected, $output, 'Expected ssh command was built');
   }
 
-  /*
+  /**
    * Covers the following target responsibilities.
    *   - Interpret stdin as options as per REST API.
    *   - Successfully execute specified command.
@@ -75,7 +75,7 @@ EOD;
   */
   function testTarget() {
     $stdin = json_encode(array('filter'=>'sql'));
-    $exec = sprintf('echo %s | %s version --backend', self::escapeshellarg($stdin), UNISH_DRUSH);
+    $exec = sprintf('echo %s | %s version --backend 2>/dev/null', self::escapeshellarg($stdin), UNISH_DRUSH);
     $this->execute($exec);
     $parsed = parse_backend_output($this->getOutput());
     $this->assertTrue((bool) $parsed, 'Successfully parsed backend output');
@@ -94,7 +94,7 @@ EOD;
     $this->assertArrayHasKey('DRUSH_NO_DRUPAL_ROOT', $parsed['error_log']);
   }
 
-  /*
+  /**
    * Covers the following target responsibilities.
    *   - Insures that the 'Drush version' line from drush status appears in the output.
    *   - Insures that the backend output start marker appears in the output (this is a backend command).
@@ -151,7 +151,7 @@ EOD;
       'backend' => NULL,
       'include' => dirname(__FILE__), // Find unit.drush.inc commandfile.
     );
-    $php = "\$values = drush_invoke_process('@none', 'unit-return-options', array('value'), array('x' => 'y'), array('invoke-multiple' => '3')); return \$values;";
+    $php = "\$values = drush_invoke_process('@none', 'unit-return-options', array('value'), array('x' => 'y', 'strict' => 0), array('invoke-multiple' => '3')); return \$values;";
     $this->drush('php-eval', array($php), $options);
     $parsed = parse_backend_output($this->getOutput());
     // assert that $parsed has a 'concurrent'-format output result
@@ -178,7 +178,7 @@ EOD;
       'backend' => NULL,
       'include' => dirname(__FILE__), // Find unit.drush.inc commandfile.
     );
-    $php = "\$values = drush_invoke_process('@none', 'unit-return-options', array('value'), array('x' => 'y', 'data' => array('a' => 1, 'b' => 2)), array('method' => 'GET')); return array_key_exists('object', \$values) ? \$values['object'] : 'no result';";
+    $php = "\$values = drush_invoke_process('@none', 'unit-return-options', array('value'), array('x' => 'y', 'strict' => 0, 'data' => array('a' => 1, 'b' => 2)), array('method' => 'GET')); return array_key_exists('object', \$values) ? \$values['object'] : 'no result';";
     $this->drush('php-eval', array($php), $options);
     $parsed = parse_backend_output($this->getOutput());
     // assert that $parsed has 'x' but not 'data'
@@ -198,18 +198,18 @@ EOD;
       'backend' => NULL,
       'include' => dirname(__FILE__), // Find unit.drush.inc commandfile.
     );
-    $php = "\$values = drush_invoke_process('@none', 'unit-return-options', array('value'), array('x' => 'y', 'data' => array('a' => 1, 'b' => 2)), array('method' => 'POST')); return array_key_exists('object', \$values) ? \$values['object'] : 'no result';";
+    $php = "\$values = drush_invoke_process('@none', 'unit-return-options', array('value'), array('x' => 'y', 'strict' => 0, 'data' => array('a' => 1, 'b' => 2)), array('method' => 'POST')); return array_key_exists('object', \$values) ? \$values['object'] : 'no result';";
     $this->drush('php-eval', array($php), $options);
     $parsed = parse_backend_output($this->getOutput());
     // assert that $parsed has 'x' and 'data'
-    $this->assertEquals(array_diff(array (
+    $this->assertEquals(array (
   'x' => 'y',
   'data' =>
   array (
     'a' => 1,
     'b' => 2,
   ),
-), $parsed['object']), array());
+), $parsed['object']);
   }
 
   /**
@@ -226,13 +226,34 @@ EOD;
       'backend' => NULL,
       'include' => dirname(__FILE__), // Find unit.drush.inc commandfile.
     );
-    $php = "\$values = drush_invoke_process('@none', 'unit-return-options', array('value'), array('x' => 'y', 'data' => array('a' => 1, 'b' => 2)), array('method' => 'GET', '#process-read-size' => 16)); return array_key_exists('object', \$values) ? \$values['object'] : 'no result';";
-    $this->drush('php-eval', array($php), $options);
-    $parsed = parse_backend_output($this->getOutput());
-    // assert that $parsed has 'x' but not 'data'
-    $this->assertEquals("array (
-  'x' => 'y',
+    $min = 1;
+    $max = 4;
+    $read_sizes_to_test = array(4096);
+    if (in_array('--debug', $_SERVER['argv'])) {
+      $read_sizes_to_test[] = 128;
+      $read_sizes_to_test[] = 16;
+      $max = 16;
+    }
+    foreach ($read_sizes_to_test as $read_size) {
+      $log_message="";
+      for ($i = $min; $i <= $max; $i++) {
+        $log_message .= "X";
+        $php = "\$values = drush_invoke_process('@none', 'unit-return-options', array('value'), array('log-message' => '$log_message', 'x' => 'y$read_size', 'strict' => 0, 'data' => array('a' => 1, 'b' => 2)), array('method' => 'GET', '#process-read-size' => $read_size)); return array_key_exists('object', \$values) ? \$values['object'] : 'no result';";
+        $this->drush('php-eval', array($php), $options);
+        $parsed = parse_backend_output($this->getOutput());
+        // assert that $parsed has 'x' but not 'data'
+        $all_warnings=array();
+        foreach ($parsed['log'] as $log) {
+          if ($log['type'] == 'warning') {
+            $all_warnings[] = $log['message'];
+          }
+        }
+        $this->assertEquals("$log_message,done", implode(',', $all_warnings), 'Log reconstruction with read_size ' . $read_size);
+        $this->assertEquals("array (
+  'x' => 'y$read_size',
 )", var_export($parsed['object'], TRUE));
+      }
+    }
   }
 }
 
@@ -240,13 +261,10 @@ class backendUnitCase extends Drush_UnitTestCase {
 
   /**
    * Covers the following target responsibilities.
-   *   - Insures that drush_invoke_process called with fork backend set is able
+   *   - Insures that drush_invoke_process() called with fork backend set is able
    *     to invoke a non-blocking process.
    */
   function testBackendFork() {
-    // Need to set DRUSH_COMMAND so that drush will be called and not phpunit
-    define('DRUSH_COMMAND', UNISH_DRUSH);
-
     // Ensure that file that will be created by forked process does not exist
     // before invocation.
     $test_file = UNISH_SANDBOX . '/fork_test.txt';
@@ -254,7 +272,7 @@ class backendUnitCase extends Drush_UnitTestCase {
       unlink($test_file);
     }
 
-    // Sleep for a milisecond, then create the file
+    // Sleep for a millisecond, then create the file
     $ev_php = "usleep(1000);fopen('$test_file','a');";
     drush_invoke_process("@none", "ev", array($ev_php), array(), array("fork" => TRUE));
 

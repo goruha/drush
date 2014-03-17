@@ -94,16 +94,6 @@ function drush_core_pre_site_install($profile = NULL) {
     }
   }
 
-  // If there is a profile, write it (as needed) into $conf['install_profile']
-  // to help drush find commandfiles earlier in the drush bootstrap.
-  if (!empty($profile)) {
-    $contents = file_get_contents($settingsfile);
-    if (strpos($contents, "\$conf['install_profile']") === FALSE && is_writable($settingsfile)) {
-      $install_profile_config = "\$conf['install_profile'] = '$profile';";
-      $appended = file_put_contents($settingsfile, "\n" . $install_profile_config . "\n", FILE_APPEND);
-    }
-  }
-
   // The Drupal 6 installer needs to bootstrap up to the specified site.
   // We need to be at least at DRUSH_BOOTSTRAP_DRUPAL_SITE to select the site uri to install to
   define('MAINTENANCE_MODE', 'install');
@@ -144,13 +134,40 @@ function drush_core_pre_site_install($profile = NULL) {
   if (drush_drupal_major_version() >= 8) {
     // Empty out any existing config directories.
     $directories = array();
+    // Check for alternative format:
+    // @code
+    // $config_directories = array(
+    //   'active' => array(
+    //     'path' => 'config/active',
+    //   ),
+    //   'staging' => array(
+    //     'path' => 'config/staging',
+    //   ),
+    // );
+    // @endcode
     preg_match('/\n\$config_directories[^;]*\'path\' => \'([^\']*)\'.*\'path\' => \'([^\']*)\'/s', file_get_contents($settingsfile), $directories);
-    if (!empty($directories)) {
-      $active = $files . '/' . $directories[1];
-      $staging = $files . '/' . $directories[2];
-      if (file_exists($active)) {
-        drush_delete_dir_contents($active, TRUE);
-        drush_delete_dir_contents($staging, TRUE);
+
+    if (empty($directories)) {
+      // Check for alternative format:
+      // @code
+      // $config_directories['active']['path'] = 'config/active';
+      // $config_directories['staging']['path'] = 'config/staging';
+      // @endcode
+      foreach (array('active', 'staging') as $type) {
+        preg_match('/\n\$config_directories[^;]*\'' . $type . '\'\]\[\'path\'\] = \'([^\']*)\'/', file_get_contents($settingsfile), $directory);
+        if (isset($directory[1])) {
+          $directories[$type] = $files . '/' . $directory[1];
+        }
+      }
+    }
+    else {
+      $directories['active'] =  $files . '/' . $directories[1];
+      $directories['staging'] =  $files . '/' . $directories[2];
+    }
+
+    foreach ($directories as $directory) {
+      if (file_exists($directory)) {
+        drush_delete_dir_contents($directory, TRUE);
       }
     }
 

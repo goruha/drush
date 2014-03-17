@@ -110,10 +110,16 @@ function drush_dir_md5($dir) {
  *   The file or directory to delete.
  * @param $force
  *   Try whatever possible to delete the directory - also read-only ones.
+ * @param $follow_symlinks
+ *   Do not delete symlinked files. Simply unlink symbolic links.
  * @return
  *   FALSE on failure, TRUE if everything was deleted.
  */
-function drush_delete_dir($dir, $force = FALSE) {
+function drush_delete_dir($dir, $force = FALSE, $follow_symlinks = FALSE) {
+  // Do not delete symlinked files, only unlink symbolic links
+  if (is_link($dir) && !$follow_symlinks) {
+    return unlink($dir);
+  }
   // Allow to delete symlinks even if the target doesn't exist.
   if (!is_link($dir) && !file_exists($dir)) {
     return TRUE;
@@ -248,7 +254,7 @@ function _drush_recursive_copy($src, $dest) {
   elseif (is_link($src)) {
     symlink(readlink($src), $dest);
   }
-  elseif (copy($src, $dest) !== TRUE) {
+  elseif (!(copy($src, $dest) && touch($dest, filemtime($src)))) {
     return FALSE;
   }
 
@@ -409,18 +415,18 @@ function drush_find_tmp() {
   if (!isset($temporary_directory)) {
     $directories = array();
 
+    // Get user specific and operating system temp folders from system environment variables.
+    // See http://www.microsoft.com/resources/documentation/windows/xp/all/proddocs/en-us/ntcmds_shelloverview.mspx?mfr=true
+    $tempdir = getenv('TEMP');
+    if (!empty($tempdir)) {
+      $directories[] = $tempdir;
+    }
+    $tmpdir = getenv('TMP');
+    if (!empty($tmpdir)) {
+      $directories[] = $tmpdir;
+    }
     // Operating system specific dirs.
     if (drush_is_windows()) {
-      // get user specific and operating system temp folders from system environment variables
-      // see http://www.microsoft.com/resources/documentation/windows/xp/all/proddocs/en-us/ntcmds_shelloverview.mspx?mfr=true
-      $tempdir = getenv('TEMP');
-      if (isset($tempdir)) {
-        $directories[] = $tempdir;
-      }
-      $tmpdir = getenv('TMP');
-      if (isset($tmpdir)) {
-        $directories[] = $tmpdir;
-      }
       $windir = getenv('WINDIR');
       if (isset($windir)) {
         // WINDIR itself is not writable, but it always contains a /Temp dir,

@@ -32,6 +32,7 @@ function drush_pm_updatestatus() {
     if (!isset($extension->info['project'])) {
       if ((isset($extension->vcs)) && ($extension->status)) {
         $update_info[$name] = array(
+          'name' => $name,
           'label' => $extension->label,
           'existing_version' => 'Unknown',
           'status' => DRUSH_PM_REQUESTED_PROJECT_NOT_PACKAGED,
@@ -45,7 +46,7 @@ function drush_pm_updatestatus() {
         }
       }
     }
-    // Aditionally if the extension name is distinct to the project name and
+    // Additionally if the extension name is distinct to the project name and
     // the user asked to update the extension, fix the request.
     elseif ((isset($requests[$name])) && ($extension->name != $extension->info['project'])) {
       $requests[$extension->info['project']] = $requests[$name];
@@ -68,6 +69,7 @@ function drush_pm_updatestatus() {
       // Disabled projects.
       if ((isset($projects[$name])) && ($projects[$name]['status'] == 0)) {
         $update_info[$name] = array(
+          'name' => $name,
           'label' => $projects[$name]['label'],
           'existing_version' => $projects[$name]['version'],
           'status' => DRUSH_PM_REQUESTED_PROJECT_NOT_UPDATEABLE,
@@ -75,9 +77,10 @@ function drush_pm_updatestatus() {
         unset($requests[$name]);
       }
       // At this point we are unable to find matching installed project.
-      // It does not exist at all or it is mispelled,...
+      // It does not exist at all or it is misspelled,...
       else {
         $update_info[$name] = array(
+          'name' => $name,
           'label' => $name,
           'existing_version' => 'Unknown',
           'status'=> DRUSH_PM_REQUESTED_PROJECT_NOT_FOUND,
@@ -85,6 +88,7 @@ function drush_pm_updatestatus() {
       }
     }
   }
+
   // If specific versions were requested, match the requested release.
   foreach ($requests as $name => $request) {
     if (!empty($request['version'])) {
@@ -105,7 +109,7 @@ function drush_pm_updatestatus() {
   // Process locks specified on the command line.
   $locked_list = drush_pm_update_lock($update_info, drush_get_option_list('lock'), drush_get_option_list('unlock'), drush_get_option('lock-message'));
 
-  // Build project updatable messages, set candidate verion and mark
+  // Build project updatable messages, set candidate version and mark
   // 'updatable' in the project.
   foreach ($update_info as $key => $project) {
     switch($project['status']) {
@@ -129,7 +133,7 @@ function drush_pm_updatestatus() {
         $status = dt('Project has no enabled extensions and can\'t be updated');
         break;
       default:
-        // This can set $project['updateable'] and $project['candidate_verison']
+        // This can set $project['updateable'] and $project['candidate_version']
         $status = pm_update_filter($project);
         break;
     }
@@ -150,24 +154,29 @@ function drush_pm_updatestatus() {
     }
   }
 
-  // When the output is a simple list, Drush's output formatting
-  // system will automatically reduce the provided table to just
-  // the array keys of the row.  Showing the names of all available
-  // projects would not make sense, so we remove the items from the
-  // list that do not need to be updated, making the result a list
-  // of the projects that need updating.  This is consistent with
-  // how Drush has always worked with pm-updatecode in --pipe mode.
-  // (n.b. --pipe for pm-updatestatus returns data in a 'list')
-  $format = drush_get_outputformat();
-  if ($format->formatter_is_simple_list()) {
-    foreach ($update_info as $key => $project) {
-      unset($project['releases']);
-      if (empty($project['updateable'])) {
-        unset($update_info[$key]);
+  // Only list projects that have updates available. Use pm-list if you want more info.
+  $updateable = pm_project_filter($update_info, drush_get_option('security-only'));
+  return $updateable;
+}
+
+/**
+ * Return an array of updateable projects and fill $rows.
+ *
+ * Array of updateable projects is obtained from calculated project update
+ * status and $security_only flag.
+ */
+function pm_project_filter(&$update_info, $security_only) {
+  $updateable = array();
+  foreach ($update_info as $key => $project) {
+    if (!empty($project['updateable'])) {
+      $updateable[$key] = $project;
+      // Find only security updates
+      if ($security_only && ($project['status'] != UPDATE_NOT_SECURE)) {
+        unset($updateable[$key]);
       }
     }
   }
-  return $update_info;
+  return $updateable;
 }
 
 /**

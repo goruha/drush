@@ -19,13 +19,10 @@ function cache_drush_command() {
       'bin' => 'Optional. The cache bin to fetch from.',
     ),
     'required-arguments' => 1,
-    'options' => array(
-      'format' => 'Format to output the object. Use "print_r" for print_r (default), "export" for var_export, and "json" for JSON.',
-    ),
     'callback' => 'drush_cache_command_get',
     'outputformat' => array(
       'default' => 'print-r',
-      'pipe-format' => 'export',
+      'pipe-format' => 'var_export',
     ),
     'aliases' => array('cg'),
   );
@@ -48,6 +45,7 @@ function cache_drush_command() {
     ),
     'required-arguments' => 2,
     'options' => array(
+      // Note that this is not an outputformat option.
       'format' => 'Format to parse the object. Use "string" for string (default), and "json" for JSON.',
       'cache-get' => 'If the object is the result a previous fetch from the cache, only store the value in the "data" property of the object in the cache.',
     ),
@@ -65,18 +63,30 @@ function cache_drush_command() {
  *   Array of clear types.
  */
 function cache_cache_command_clear_complete() {
-  return array('values' => array_keys(drush_cache_clear_types()));
+  return array('values' => array_keys(drush_cache_clear_types(TRUE)));
 }
 
 /**
  * Command callback for drush cache-clear.
  */
 function drush_cache_command_clear($type = NULL) {
-  $types = drush_cache_clear_types();
+  $types = drush_cache_clear_types(drush_has_boostrapped(DRUSH_BOOTSTRAP_DRUPAL_FULL));
 
   // Check if the provided type ($type) is a valid cache type.
   if ($type && !key_exists($type, $types)) {
-    return drush_set_error(dt("'!type' cache is not a valid cache type", array('!type' => $type)));
+    // If we haven't done a full bootstrap, provide a more
+    // specific message with instructions to the user on
+    // bootstrapping a Drupal site for more options.
+    if (!drush_has_boostrapped(DRUSH_BOOTSTRAP_DRUPAL_FULL)) {
+      $all_types = drush_cache_clear_types(TRUE);
+      if (key_exists($type, $all_types)) {
+        return drush_set_error(dt("'!type' cache requires a working Drupal site to operate on. Use the --root and --uri options, or a site @alias, or cd to a directory containing a Drupal settings.php file.", array('!type' => $type)));
+      }
+      else {
+        return drush_set_error(dt("'!type' cache is not a valid cache type. There may be more cache types available if you select a working Drupal site.", array('!type' => $type)));
+      }
+    }
+    return drush_set_error(dt("'!type' cache is not a valid cache type.", array('!type' => $type)));
   }
 
   if ($type) {
@@ -166,15 +176,15 @@ function drush_cache_command_set($cid = NULL, $data = '', $bin = NULL, $expire =
   cache_set($cid, $data, $bin, $expire);
 }
 
-/*
+/**
  * All types of caches available for clearing. Contrib commands can alter in their own.
  */
-function drush_cache_clear_types() {
+function drush_cache_clear_types($include_bootstraped_types = FALSE) {
   $types = array(
     'all' => 'drush_cache_clear_both',
     'drush' => 'drush_cache_clear_drush',
   );
-  if (drush_has_boostrapped(DRUSH_BOOTSTRAP_DRUPAL_FULL)) {
+  if ($include_bootstraped_types) {
     $types += array(
       'theme-registry' => 'drush_cache_clear_theme_registry',
       'menu' => 'menu_rebuild',
@@ -208,7 +218,7 @@ function drush_cache_clear_theme_registry() {
     drupal_theme_rebuild();
   }
   else {
-    drush_db_delete('cache', 'cid LIKE :theme_registry', array(':theme_registry' => 'theme_registry%'));
+    cache_clear_all('theme_registry', 'cache', TRUE);
   }
 }
 

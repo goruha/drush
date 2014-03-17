@@ -1,6 +1,6 @@
 <?php
 
-/*
+/**
  * @file
  *   Tests for core commands.
  *
@@ -22,12 +22,11 @@ class coreCase extends Drush_CommandTestCase {
       'include-conf' => NULL,
       'include-vcs' => NULL,
       'yes' => NULL,
-      'invoke' => NULL, // invoke from script: do not verify options
     );
     $this->drush('core-rsync', array("@$site:%files", "/tmp"), $options, NULL, NULL, self::EXIT_SUCCESS, '2>&1;');
     $output = $this->getOutput();
     $level = $this->log_level();
-    $pattern = in_array($level, array('verbose', 'debug')) ? "Calling system(rsync -e 'ssh ' -akzv --stats --progress --yes --invoke %s /tmp);" : "Calling system(rsync -e 'ssh ' -akz --yes --invoke %s /tmp);";
+    $pattern = in_array($level, array('verbose', 'debug')) ? "Calling system(rsync -e 'ssh ' -akzv --stats --progress --yes %s /tmp);" : "Calling system(rsync -e 'ssh ' -akz --yes %s /tmp);";
     $expected = sprintf($pattern, UNISH_SANDBOX . "/web/sites/$site/files");
     $this->assertEquals($expected, $output);
   }
@@ -47,7 +46,7 @@ class coreCase extends Drush_CommandTestCase {
       'include-conf' => NULL,
       'include-vcs' => NULL,
       'yes' => NULL,
-      'invoke' => NULL, // invoke from script: do not verify options
+      'strict' => 0, // invoke from script: do not verify options
     );
     $php = '$a=drush_sitealias_get_record("@' . $site . '"); drush_sitealias_resolve_path_references($a, "%files"); print_r($a["path-aliases"]["%files"]);';
     $this->drush('ev', array($php), $options);
@@ -56,7 +55,7 @@ class coreCase extends Drush_CommandTestCase {
     $this->assertEquals($expected, $output);
   }
 
-  /*
+  /**
    * Test standalone php-script scripts. Assure that script args and options work.
    */
   public function testStandaloneScript() {
@@ -87,21 +86,21 @@ drush_invoke("version", $arg);
   function testDrupalDirectory() {
     $this->setUpDrupal(1, TRUE);
     $root = $this->webroot();
+    $sitewide = $this->drupalSitewideDirectory();
     $options = array(
       'root' => $root,
       'uri' => key($this->sites),
-      'verbose' => NULL,
-      'skip' => NULL, // No FirePHP
       'yes' => NULL,
+      'skip' => NULL,
       'cache' => NULL,
-      'invoke' => NULL, // invoke from script: do not verify options
+      'strict' => 0, // invoke from script: do not verify options
     );
     $this->drush('pm-download', array('devel'), $options);
     $this->drush('pm-enable', array('devel', 'menu'), $options);
 
     $this->drush('drupal-directory', array('devel'), $options);
     $output = $this->getOutput();
-    $this->assertEquals($root . '/sites/all/modules/devel', $output);
+    $this->assertEquals($root . '/' . $sitewide . '/modules/devel', $output);
 
     $this->drush('drupal-directory', array('%files'), $options);
     $output = $this->getOutput();
@@ -109,7 +108,7 @@ drush_invoke("version", $arg);
 
     $this->drush('drupal-directory', array('%modules'), $options);
     $output = $this->getOutput();
-    $this->assertEquals($root . '/sites/all/modules', $output);
+    $this->assertEquals($root .  '/' . $sitewide . '/modules', $output);
   }
 
   function testCoreRequirements() {
@@ -120,24 +119,27 @@ drush_invoke("version", $arg);
       'uri' => key($this->sites),
       'pipe' => NULL,
       'ignore' => 'cron,http requests,update_core', // no network access when running in tests, so ignore these
-      'invoke' => NULL, // invoke from script: do not verify options
+      'strict' => 0, // invoke from script: do not verify options
     );
     // Verify that there are no severity 2 items in the status report
     $this->drush('core-requirements', array(), $options + array('severity' => '2'));
     $output = $this->getOutput();
     $this->assertEquals('', $output);
+
     $this->drush('core-requirements', array(), $options);
-    $output = $this->getOutput();
-    // Pick a substring that is valid for D7/D8.
-    $expected="
-install_profile=-1
-node_access=-1
-php=-1
-php_extensions=-1
-php_memory_limit=-1
-php_register_globals=-1
-settings.php=-1
-";
-    $this->assertContains($expected, trim($output));
+    $loaded = $this->getOutputFromJSON();
+    // Pick a subset that are valid for D6/D7/D8.
+    $expected = array(
+      // 'install_profile' => -1,
+      // 'node_access' => -1,
+      'php' => -1,
+      // 'php_extensions' => -1,
+      'php_memory_limit' => -1,
+      'php_register_globals' => -1,
+      'settings.php' => -1,
+    );
+    foreach ($expected as $key => $value) {
+      $this->assertEquals($value, $loaded->$key->sid);
+    }
   }
 }

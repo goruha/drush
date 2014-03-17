@@ -1,17 +1,17 @@
 <?php
 
-/*
+/**
  * @file
  *   Tests for user.drush.inc
  */
 
-/*
+/**
  *  @group slow
  *  @group commands
  */
 class userCase extends Drush_CommandTestCase {
 
-  /*
+  /**
    * Create, edit, block, and cancel users.
    */
   public function testUser() {
@@ -29,44 +29,40 @@ class userCase extends Drush_CommandTestCase {
       $authenticated .= ' user';
     }
     $this->drush('user-create', array($name), $options + array('password' => 'password', 'mail' => "example@example.com"));
-    $this->drush('user-information', array($name), $options + array('pipe' => NULL));
-    $output = $this->getOutput();
-    $row  = str_getcsv($output);
-    $uid = $row[1];
-    $this->assertEquals('example@example.com', $row[2]);
-    $this->assertEquals($name, $row[0]);
-    $this->assertEquals(1, $row[3], 'Newly created user is Active.');
-    $this->assertEquals($authenticated, $row[4], 'Newly created user has one role.');
+    $this->drush('user-information', array($name), $options + array('format' => 'json'));
+    $output = $this->getOutputFromJSON('2');
+    $this->assertEquals('example@example.com', $output->mail);
+    $this->assertEquals($name, $output->name);
+    $this->assertEquals(1, $output->status, 'Newly created user is Active.');
+    $obj_authenticated = (object) array(2 => $authenticated);
+    $this->assertEquals(json_encode($obj_authenticated), json_encode($output->roles), 'Newly created user has one role.');
 
     // user-block
     $this->drush('user-block', array($name), $options);
-    $this->drush('user-information', array($name), $options + array('pipe' => NULL));
-    $output = $this->getOutput();
-    $row  = str_getcsv($output);
-    $this->assertEquals(0, $row[3], 'User is blocked.');
+    $this->drush('user-information', array($name), $options + array('format' => 'json'));
+    $output = $this->getOutputFromJSON('2');
+    $this->assertEquals(0, $output->status, 'User is blocked.');
 
     // user-unblock
     $this->drush('user-unblock', array($name), $options);
-    $this->drush('user-information', array($name), $options + array('pipe' => NULL));
-    $output = $this->getOutput();
-    $row  = str_getcsv($output);
-    $this->assertEquals(1, $row[3], 'User is unblocked.');
+    $this->drush('user-information', array($name), $options + array('format' => 'json'));
+    $output = $this->getOutputFromJSON('2');
+    $this->assertEquals(1, $output->status, 'User is unblocked.');
 
     // user-add-role
     // first, create the fole since we use testing install profile.
     $this->drush('role-create', array('test role'), $options);
     $this->drush('user-add-role', array('test role', $name), $options);
-    $this->drush('user-information', array($name), $options + array('pipe' => NULL));
-    $output = $this->getOutput();
-    $row  = str_getcsv($output);
-    $this->assertEquals("$authenticated,test role", $row[4], 'User has test role.');
+    $this->drush('user-information', array($name), $options + array('format' => 'json'));
+    $output = $this->getOutputFromJSON('2');
+    $expected = (object) array(2 => $authenticated, 3 => 'test role');
+    $this->assertEquals(json_encode($expected), json_encode($output->roles), 'User has test role.');
 
     // user-remove-role
     $this->drush('user-remove-role', array('test role', $name), $options);
-    $this->drush('user-information', array($name), $options + array('pipe' => NULL));
-    $output = $this->getOutput();
-    $row  = str_getcsv($output);
-    $this->assertEquals($authenticated, $row[4], 'User removed test role.');
+    $this->drush('user-information', array($name), $options + array('format' => 'json'));
+    $output = $this->getOutputFromJSON('2');
+    $this->assertEquals(json_encode($obj_authenticated), json_encode($output->roles), 'User removed test role.');
 
     // user-password
     $newpass = 'newpass';
@@ -82,6 +78,10 @@ class userCase extends Drush_CommandTestCase {
     }
 
     // user-login
+    // Check if user-login on non-bootstrapped environment returns error.
+    $this->drush('user-login', array(), array(), NULL, NULL, self::EXIT_ERROR);
+
+    // Check user-login
     $user_login_options = $options + array('simulate' => TRUE, 'browser' => 'unish');
     // Collect full logs so we can check browser.
     $this->drush('user-login', array(), $user_login_options + array('backend' => NULL));
@@ -96,6 +96,7 @@ class userCase extends Drush_CommandTestCase {
     }
     $this->assertEquals($browser, TRUE, 'Correct browser opened at correct URL');
     // Check specific user and path argument.
+    $uid = 2;
     $this->drush('user-login', array($name, 'node/add'), $user_login_options);
     $output = $this->getOutput();
     $url = parse_url($output);

@@ -84,12 +84,11 @@ function sandwich_drush_command() {
     ),
     'aliases' => array('sps'),
     // Example output engine data:  command returns a deep array
-    // that can either be printed in table format or as an
-    // ini file in sections.
+    // that can either be printed in table format or as a json array.
     'engines' => array(
       'outputformat' => array(
         'default' => 'table',
-        'pipe-format' => 'ini-sections',
+        'pipe-format' => 'json',
         // Commands that return deep arrays will usually use
         // machine-ids for the column data.  A 'field-labels'
         // item maps from the machine-id to a human-readable label.
@@ -178,7 +177,7 @@ function sandwich_drush_help($section) {
  */
 function drush_sandwich_make_me_a_sandwich_validate() {
   if (drush_is_windows()) {
-    // $name = getenv('USERNAME');
+    // $name = drush_get_username();
     // TODO: implement check for elevated process using w32api
     // as sudo is not available for Windows
     // http://php.net/manual/en/book.w32api.php
@@ -208,10 +207,7 @@ function drush_sandwich_make_me_a_sandwich_validate() {
  * If for some reason you do not want your hook function to be named
  * after your command, you may define a 'callback' item in your command
  * object that specifies the exact name of the function that should be
- * called.  However, the specified callback function must still begin
- * with "drush_commandfile_" (e.g. 'callback' => "drush_example_foo_execute")
- * if you want that all hook functions are still called (e.g.
- * drush_example_pre_foo_execute, and so on).
+ * called.
  *
  * In this function, all of Drupal's API is (usually) available, including
  * any functions you have added in your own modules/themes.

@@ -118,8 +118,15 @@ function drush_load_command_engines($command) {
   }
 }
 
+function drush_get_command_engine_config($command, $engine_type, $metadata = array()) {
+  if (isset($command['engines'][$engine_type])) {
+    $metadata = array_merge($metadata, $command['engines'][$engine_type]);
+  }
+  return $metadata;
+}
+
 function drush_load_command_engine($command, $engine_type, $metadata = array()) {
-  $config = array_merge($metadata, $command['engines'][$engine_type]);
+  $config = drush_get_command_engine_config($command, $engine_type, $metadata);
   $version = drush_drupal_major_version();
   drush_log(dt("Loading !engine engine.", array('!engine' => $engine_type), 'bootstrap'));
   $engine_info = drush_get_engines($engine_type);
@@ -206,7 +213,7 @@ function drush_merge_engine_data(&$command) {
       }
     }
     // Otherwise, provide a command option to choose between engines and add
-    // the engine options and sub-obtions.
+    // the engine options and sub-options.
     else {
       // Process engines in order. First the default engine, the rest alphabetically.
       $default = drush_find_engine_to_use($config, $engine_info);
@@ -269,7 +276,7 @@ function drush_merge_engine_data(&$command) {
           $command['options'][$engine_selection_option]['description'] .= "\n" . dt("All available values are:") . "\n - " . implode("\n - ", $combine_help_data) . "\n";
         }
         else {
-          $command['options'][$engine_selection_option]['description'] .= " " . dt("Values include: ") . implode(', ', array_keys($combine_help_data)) . ". ";
+          $command['options'][$engine_selection_option]['description'] .= " " . dt("Available: ") . implode(', ', array_keys($combine_help_data)) . ". ";
         }
         $command['options'][$engine_selection_option]['description'] .= dt("Default is !default.", array('!default' => $default));
       }
@@ -313,10 +320,10 @@ function drush_engine_topic_command($engine) {
   ksort($instances);
   foreach ($instances as $instance => $config) {
     if (isset($config['description'])) {
-      $doc_text .= "\n\n--$option=$instance:\n\n" . $config['description'];
+      $doc_text .= "\n\n::: --$option=$instance :::\n" . $config['description'];
       $path = $config['path'] . '/topics/' . $instance . '.html';
       if (file_exists($path)) {
-        $doc_text .= "\n\n" . drush_html_to_text(file_get_contents($path));
+        $doc_text .= "\n" . drush_html_to_text(file_get_contents($path));
       }
       $additional_topic_text = drush_command_invoke_all('drush_engine_topic_additional_text', $engine, $instance, $config);
       if (!empty($additional_topic_text)) {

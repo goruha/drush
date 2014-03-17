@@ -73,10 +73,10 @@ function drush_print_r($array, $handle = NULL, $newline = TRUE) {
 }
 
 /**
- * Format some data and print it out.  Respece --format option.
+ * Format some data and print it out.  Respect --format option.
  */
 function drush_print_format($input, $default_format, $metadata = NULL) {
-  drush_print(drush_format($user_info, $metadata, drush_get_option('format', $default_format)));
+  drush_print(drush_format($input, $metadata, drush_get_option('format', $default_format)));
 }
 
 /**
@@ -234,11 +234,13 @@ function drush_print_table($rows, $header = FALSE, $widths = array(), $handle = 
  * @param $widths
  *   The widths of each column (in characters) to use - if not specified this
  *   will be determined automatically, based on a "best fit" algorithm.
+ * @param array $console_table_options
+ *   An array that is passed along when constructing a Console_Table instance.
  * @return $output
  *   The formatted output.
  */
-function drush_format_table($rows, $header = FALSE, $widths = array()) {
-  $tbl = _drush_format_table($rows, $header, $widths);
+function drush_format_table($rows, $header = FALSE, $widths = array(), $console_table_options = array()) {
+  $tbl = _drush_format_table($rows, $header, $widths, $console_table_options);
   $output = $tbl->getTable();
   if (!stristr(PHP_OS, 'WIN')) {
     $output = str_replace("\r\n", PHP_EOL, $output);
@@ -246,8 +248,11 @@ function drush_format_table($rows, $header = FALSE, $widths = array()) {
   return $output;
 }
 
-function _drush_format_table($rows, $header = FALSE, $widths = array()) {
-  $tbl = new Console_Table(CONSOLE_TABLE_ALIGN_LEFT , '');
+function _drush_format_table($rows, $header = FALSE, $widths = array(), $console_table_options = array()) {
+  // Add defaults.
+  $console_table_options += array(CONSOLE_TABLE_ALIGN_LEFT , '');
+  $tbl = new ReflectionClass('Console_Table');
+  $tbl = $tbl->newInstanceArgs($console_table_options);
 
   $auto_widths = drush_table_column_autowidth($rows, $widths);
 
@@ -327,8 +332,19 @@ function drush_select_fields($all_field_labels, $fields, $strict = TRUE) {
     if (array_key_exists($field, $all_field_labels)) {
       $field_labels[$field] = $all_field_labels[$field];
     }
-    elseif (!$strict) {
-      $field_labels[$field] = $field;
+    else {
+      // Allow the user to select fields via their human-readable names.
+      // This is less convenient than the field name (since the human-readable
+      // names may contain spaces, and must therefore be quoted), but these are
+      // the values that the user sees in the command output. n.b. the help
+      // text lists fields by their more convenient machine names.
+      $key = array_search(strtolower($field), array_map('strtolower', $all_field_labels));
+      if ($key !== FALSE) {
+        $field_labels[$key] = $all_field_labels[$key];
+      }
+      elseif (!$strict) {
+        $field_labels[$field] = $field;
+      }
     }
   }
   return $field_labels;
@@ -349,14 +365,17 @@ function drush_select_fields($all_field_labels, $fields, $strict = TRUE) {
  * @return
  *   The input array, re-ordered and re-keyed per $fields
  */
-function drush_select_output_fields($input, $fields, $mapping = array()) {
+function drush_select_output_fields($input, $fields, $mapping = array(), $default_value = NULL) {
   $result = array();
   if (empty($fields)) {
     $result = $input;
   }
   else {
     foreach ($fields as $key => $label) {
-      $result[$label] = drush_lookup_field_by_path($input, $key, $mapping);
+      $value = drush_lookup_field_by_path($input, $key, $mapping, $default_value);
+      if (isset($value)) {
+        $result[$label] = $value;
+      }
     }
   }
   return $result;
@@ -373,6 +392,9 @@ function drush_select_output_fields($input, $fields, $mapping = array()) {
  *   a '/', that list the elements of the array to access.  This
  *   works much like a very simple version of xpath for arrays, with
  *   all items being treated identically (like elements).
+ * @param $mapping:
+ *   (optional) An array whose keys may correspond to the $path parameter and
+ *   whose values are the corresponding paths to be used in $input.
  *
  * Example 1:
  *
@@ -385,8 +407,15 @@ function drush_select_output_fields($input, $fields, $mapping = array()) {
  *   $input = array('ca' => array('sf' => array('mission'=>array('1700'=>'woodward'))));
  *   $path = 'ca/sf/mission/1701';
  *   result: 'woodward'
+ *
+ * Example 3:
+ *
+ *   $input = array('#name' => 'site.dev', '#id' => '222');
+ *   $path = 'name';
+ *   $mapping = array('name' => '#name');
+ *   result: 'site.dev';
  */
-function drush_lookup_field_by_path($input, $path, $mapping = array()) {
+function drush_lookup_field_by_path($input, $path, $mapping = array(), $default_value = NULL) {
   $result = '';
   if (isset($mapping[$path])) {
     $path = $mapping[$path];
@@ -401,7 +430,7 @@ function drush_lookup_field_by_path($input, $path, $mapping = array()) {
         $result = $result[$key];
       }
       else {
-        return '';
+        return $default_value;
       }
     }
   }
@@ -457,24 +486,28 @@ function drush_hide_empty_fields($input, $fields) {
  *    array(
  *      'row1' => array('col1' => 'data', 'col2' => 'data'),
  *      'row2' => array('col1' => 'data', 'col2' => 'data'),
+ *    )
  * @param $header
  *    array('col1' => 'Column 1 Label', 'col2' => 'Column 2 Label')
  * @param $metadata
- *    An array of special options
- *      'strip-tags' - call the strip_tags function on the data
+ *    (optional) An array of special options, all optional:
+ *    - strip-tags: call the strip_tags function on the data
  *         before placing it in the table
- *      'concatenate-columns' - an array of:
- *          'dest-col' => array('src-col1', 'src-col2')
+ *    - concatenate-columns: an array of:
+ *         - dest-col: array('src-col1', 'src-col2')
  *         Appends all of the src columns with whatever is
  *         in the destination column.  Appended columns are
  *         separated by newlines.
- *       'transform-columns' - an array of:
- *           'dest-col' => array('from' => 'to'),
+ *    - transform-columns: an array of:
+ *         - dest-col: array('from' => 'to'),
  *         Transforms any occurance of 'from' in 'dest-col' to 'to'.
- *       'format-cell' - Drush ouput format name to use to format
+ *    - format-cell: Drush output format name to use to format
  *         any cell that is an array.
- *       'process-cell' - php function name to use to process
+ *    - process-cell: php function name to use to process
  *         any cell that is an array.
+ *    - field-mappings: an array whose keys are some or all of the keys in
+ *         $header and whose values are the corresponding keys to use when
+ *         indexing the values of $rows_of_keyvalue_table.
  * @return
  *    An array of arrays
  */
@@ -549,7 +582,7 @@ function drush_table_column_autowidth($rows, $widths) {
   $auto_widths = $widths;
 
   // First we determine the distribution of row lengths in each column.
-  // This is an array of descending character length keys (i.e. starting at
+  // This is an array of descending character  length keys (i.e. starting at
   // the rightmost character column), with the value indicating the number
   // of rows where that character column is present.
   $col_dist = array();

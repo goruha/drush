@@ -73,7 +73,7 @@ function pm_drush_help($section) {
 
 If no --destination is provided, then destination depends on the project type:
   - Profiles will be downloaded to profiles/ in your Drupal root.
-  - Modules and themes will be downloaded to the site specific directory (sites/example.com/modules|themes) if available, or to sites/all/modules|themes.
+  - Modules and themes will be downloaded to the site specific directory (sites/example.com/modules|themes) if available, or to the site wide directory otherwise.
   - If you're downloading drupal core or you are not running the command within a bootstrapped drupal site, the default location is the current directory.
   - Drush commands will be relocated to @site_wide_location (if available) or ~/.drush. Relocation is determined once the project is downloaded by examining its content. Note you can provide your own function in a commandfile to determine the relocation of any project.", array('@site_wide_location' => drush_get_context('DRUSH_SITE_WIDE_COMMANDFILES')));
   }
@@ -85,8 +85,11 @@ If no --destination is provided, then destination depends on the project type:
 function pm_drush_command() {
   $update = 'update';
   $update_options = array(
-    'security-only' => 'Only update modules that have security updates available. However, if there were other releases of a module between the installed version the security update, other changes to features or functionality may occur.',
-    'lock' => 'Add a persistent lock to remove the specified projects from consideration during updates.  Locks may be removed with the --unlock parameter, or overridden by specifically naming the project as a parameter to pm-update or pm-updatecode.  The lock does not affect pm-download.  See also the update_advanced project for similar and improved functionality.',
+    'security-only' => 'Only update modules that have security updates available.',
+    'lock' => array(
+      'description' => 'Add a persistent lock to remove the specified projects from consideration during updates.  Locks may be removed with the --unlock parameter, or overridden by specifically naming the project as a parameter to pm-update or pm-updatecode.  The lock does not affect pm-download.  See also the update_advanced project for similar and improved functionality.',
+      'example-value' => 'foo,bar',
+    ),
   );
   $update_suboptions = array(
     'lock' => array(
@@ -94,7 +97,10 @@ function pm_drush_command() {
         'description' => 'A brief message explaining why a project is being locked; displayed during pm-updatecode.  Optional.',
         'example-value' => 'message',
       ),
-      'unlock' => 'Remove the persistent lock from the specified projects so that they may be updated again.',
+      'unlock' => array(
+        'description' => 'Remove the persistent lock from the specified projects so that they may be updated again.',
+        'example-value' => 'foo,bar',
+      ),
     ),
   );
 
@@ -124,7 +130,7 @@ function pm_drush_command() {
     'aliases' => array('pmi'),
     'outputformat' => array(
       'default' => 'key-value-list',
-      'pipe-format' => 'ini-sections',
+      'pipe-format' => 'json',
       'formatted-filter' => '_drush_pm_info_format_table_data',
       'field-labels' => array(
         'extension' => 'Extension',
@@ -181,7 +187,6 @@ function pm_drush_command() {
       'package' => 'Filter by project packages. You can use multiple comma separated values. (i.e. --package="Core - required,Other").',
       'core' => 'Filter out extensions that are not in drupal core.',
       'no-core' => 'Filter out extensions that are provided by drupal core.',
-      'pipe' => 'Returns a whitespace delimited list of the names of the resulting extensions.',
     ),
     'outputformat' => array(
       'default' => 'table',
@@ -203,14 +208,15 @@ function pm_drush_command() {
       'projects' => 'Optional. A list of installed projects to show.',
     ),
     'options' => array(
-      'pipe' => 'Returns a whitespace delimited list of projects with any of its extensions enabled and their respective version and update information, one project per line. Order: project name, current version, recommended version, update status.',
+      'pipe' => 'Return a list of the projects with any extensions enabled that need updating, one project per line.',
     ) + $update_options,
     'sub-options' => $update_suboptions,
     'outputformat' => array(
       'default' => 'table',
       'pipe-format' => 'list',
-      'field-labels' => array('label' => 'Name', 'existing_version' => 'Installed Version', 'status' => 'Status', 'status_msg' => 'Message', 'candidate_version' => 'Proposed version'),
+      'field-labels' => array('name' => 'Short Name', 'label' => 'Name', 'existing_version' => 'Installed Version', 'status' => 'Status', 'status_msg' => 'Message', 'candidate_version' => 'Proposed version'),
       'fields-default' => array('label', 'existing_version', 'candidate_version', 'status_msg' ),
+      'fields-pipe' => array('name', 'existing_version', 'candidate_version', 'status_msg' ),
       'output-data-type' => 'format-table',
     ),
     'aliases' => array('ups'),
@@ -218,11 +224,14 @@ function pm_drush_command() {
   $items['pm-updatecode'] = array(
     'description' => 'Update Drupal core and contrib projects to latest recommended releases.',
     'drupal dependencies' => array($update),
+    'examples' => array(
+      'drush pm-updatecode --no-core' => 'Update contrib projects, but skip core.',
+      'drush pm-updatestatus --format=csv --list-separator=" " --fields="name,existing_version,candidate_version,status_msg"' => 'To show a list of projects with their update status, use pm-updatestatus instead of pm-updatecode.',
+    ),
     'arguments' => array(
       'projects' => 'Optional. A list of installed projects to update.',
     ),
     'options' => array(
-      'pipe' => 'Returns a whitespace delimited list of projects with any of its extensions enabled and their respective version and update information, one project per line. Order: project name, current version, recommended version, update status.',
       'notes' => 'Show release notes for each project to be updated.',
       'no-core' => 'Only update modules and skip the core update.',
     ) + $update_options,
@@ -581,9 +590,11 @@ function drush_get_projects(&$extensions = NULL) {
         $candidates = array();
         foreach ($project['extensions'] as $e) {
           $has_project_dependency = FALSE;
-          foreach ($extensions[$e]->info['dependencies'] as $dependent) {
-            if (in_array($dependent, $project['extensions'])) {
-              $has_project_dependency = TRUE;
+          if (isset($extensions[$e]->info['dependencies']) && is_array($extensions[$e]->info['dependencies'])) {
+            foreach ($extensions[$e]->info['dependencies'] as $dependent) {
+              if (in_array($dependent, $project['extensions'])) {
+                $has_project_dependency = TRUE;
+              }
             }
           }
           if ($has_project_dependency === FALSE) {
@@ -701,7 +712,7 @@ function drush_pm_list() {
     drush_hide_output_fields('type');
   }
   foreach ($type_filter as $type) {
-    if (!in_array($type, $all_types)) { //TODO: this kind of chck can be implemented drush-wide
+    if (!in_array($type, $all_types)) { //TODO: this kind of check can be implemented drush-wide
       return drush_set_error('DRUSH_PM_INVALID_PROJECT_TYPE', dt('!type is not a valid project type.', array('!type' => $type)));
     }
   }
@@ -720,7 +731,7 @@ function drush_pm_list() {
   }
 
   foreach ($status_filter as $status) {
-    if (!in_array($status, $all_status)) { //TODO: this kind of chck can be implemented drush-wide
+    if (!in_array($status, $all_status)) { //TODO: this kind of check can be implemented drush-wide
       return drush_set_error('DRUSH_PM_INVALID_PROJECT_TYPE', dt('!status is not a valid project status.', array('!status' => $status)));
   }
   }
@@ -790,7 +801,7 @@ function drush_pm_find_project_from_extension($extension) {
     // If we can find info on a project that has the same name
     // as the requested extension, then we'll call that a match.
     $request = pm_parse_project_version(array($extension));
-    if (release_info_check_project($request[$extension], 'module')) {
+    if (release_info_check_project($request[$extension])) {
       $result = $extension;
     }
   }
@@ -813,13 +824,31 @@ function drush_pm_enable_validate() {
     // Classify $args in themes, modules or unknown.
     $modules = array();
     $themes = array();
+    $download = array();
     drush_pm_classify_extensions($args, $modules, $themes, $extension_info);
     $extensions = array_merge($modules, $themes);
     $unknown = array_diff($args, $extensions);
 
-    // Discard and set an error for each unknown extension.
-    foreach ($unknown as $name) {
-      drush_log(dt('!extension was not found and will not be enabled.', array('!extension' => $name)), 'warning');
+    // If there're unknown extensions, try and download projects
+    // with matching names.
+    if (!empty($unknown)) {
+      $found = array();
+      foreach ($unknown as $key => $name) {
+        drush_log(dt('!extension was not found.', array('!extension' => $name)), 'warning');
+        $project = drush_pm_find_project_from_extension($name);
+        if (!empty($project)) {
+          $found[] = $project;
+        }
+      }
+      if (!empty($found)) {
+        drush_log(dt("The following projects provide some or all of the extensions not found:\n@list", array('@list' => implode("\n", $found))), 'ok');
+        if (drush_get_option('resolve-dependencies')) {
+          drush_log(dt("They are being downloaded."), 'ok');
+        }
+        if ((drush_get_option('resolve-dependencies')) || (drush_confirm("Would you like to download them?"))) {
+          $download = $found;
+        }
+      }
     }
 
     // Discard already enabled and incompatible extensions.
@@ -828,8 +857,8 @@ function drush_pm_enable_validate() {
         drush_log(dt('!extension is already enabled.', array('!extension' => $name)), 'ok');
       }
       // Check if the extension is compatible with Drupal core and php version.
-      if (drush_extension_check_incompatibility($extension_info[$name])) {
-        drush_set_error('DRUSH_PM_ENABLE_MODULE_INCOMPATIBLE', dt('!name is incompatible with the Drupal version.', array('!name' => $name)));
+      if ($component = drush_extension_check_incompatibility($extension_info[$name])) {
+        drush_set_error('DRUSH_PM_ENABLE_MODULE_INCOMPATIBLE', dt('!name is incompatible with the !component version.', array('!name' => $name, '!component' => $component)));
         if ($extension_info[$name]->type == 'module') {
           unset($modules[$name]);
         }
@@ -860,23 +889,27 @@ function drush_pm_enable_validate() {
           $unmet_project_list = array_merge($unmet_project_list, $unmet_projects);
           $msgs[] = dt("!module requires !unmet-projects", array('!unmet-projects' => implode(', ', $unmet_projects), '!module' => $module));
         }
-        if (drush_get_option('resolve-dependencies') || drush_confirm(dt("The following projects have unmet dependencies:\n!list\nWould you like to download them?", array('!list' => implode("\n", $msgs))))) {
-          // If we did not already print a log message via drush_confirm, then print one now.
-          if (drush_get_option('resolve-dependencies')) {
-            drush_log(dt("The following projects have unmet dependencies:\n@list\nThey are being downloaded.", array('@list' => implode("\n", $msgs))));
-          }
-          // Disable DRUSH_AFFIRMATIVE context temporarily.
-          $drush_affirmative = drush_get_context('DRUSH_AFFIRMATIVE');
-          drush_set_context('DRUSH_AFFIRMATIVE', FALSE);
-          // Invoke a new process to download dependencies.
-          $result = drush_invoke_process('@self', 'pm-download', $unmet_project_list, array(), array('interactive' => TRUE));
-          // Restore DRUSH_AFFIRMATIVE context.
-          drush_set_context('DRUSH_AFFIRMATIVE', $drush_affirmative);
-          // Refresh module cache after downloading the new modules.
-          $extension_info = drush_get_extensions();
-          $recheck = TRUE;
+        drush_log(dt("The following projects have unmet dependencies:\n!list", array('!list' => implode("\n", $msgs))), 'ok');
+        if (drush_get_option('resolve-dependencies')) {
+          drush_log(dt("They are being downloaded."), 'ok');
+        }
+        if (drush_get_option('resolve-dependencies') || drush_confirm(dt("Would you like to download them?"))) {
+          $download = array_merge($download, $unmet_project_list);
         }
       }
+    }
+
+    if (!empty($download)) {
+      // Disable DRUSH_AFFIRMATIVE context temporarily.
+      $drush_affirmative = drush_get_context('DRUSH_AFFIRMATIVE');
+      drush_set_context('DRUSH_AFFIRMATIVE', FALSE);
+      // Invoke a new process to download dependencies.
+      $result = drush_invoke_process('@self', 'pm-download', $download, array(), array('interactive' => TRUE));
+      // Restore DRUSH_AFFIRMATIVE context.
+      drush_set_context('DRUSH_AFFIRMATIVE', $drush_affirmative);
+      // Refresh module cache after downloading the new modules.
+      $extension_info = drush_get_extensions();
+      $recheck = TRUE;
     }
   }
 
@@ -1720,31 +1753,39 @@ function drush_pm_cache_project_extensions($project, $found) {
 /**
  * Print out all extensions (modules/themes/profiles) found in specified project.
  *
- * Find .info files in the project path and identify modules, themes and
+ * Find .info.yml files in the project path and identify modules, themes and
  * profiles. It handles two kind of projects: drupal core/profiles and
  * modules/themes.
  * It does nothing with theme engine projects.
  */
 function drush_pm_extensions_in_project($project) {
-  // Mask for drush_scan_directory, to  avoid tests directories.
+  // Mask for drush_scan_directory, to match .info.yml files.
+  $mask = $project['drupal_version'][0] >= 8 ? '/(.*)\.info\.yml$/' : '/(.*)\.info$/';
+
+  // Mask for drush_scan_directory, to avoid tests directories.
   $nomask = array('.', '..', 'CVS', 'tests');
 
   // Drupal core and profiles can contain modules, themes and profiles.
   if (in_array($project['project_type'], array('core', 'profile'))) {
     $found = array('profile' => array(), 'theme' => array(), 'module' => array());
     // Find all of the .info files
-    foreach (drush_scan_directory($project['project_install_location'], "/.*\.info$/", $nomask) as $filename => $info) {
+    foreach (drush_scan_directory($project['project_install_location'], $mask, $nomask) as $filename => $info) {
+      // Extract extension name from filename.
+      $matches = array();
+      preg_match($mask, $info->basename, $matches);
+      $name = $matches[1];
+
       // Find the project type corresponding the .info file.
      // (Only drupal >=7.x has .info for .profile)
-      $base = dirname($filename) . '/' . $info->name;
+      $base = dirname($filename) . '/' . $name;
       if (is_file($base . '.module')) {
-        $found['module'][] = $info->name;
+        $found['module'][] = $name;
       }
       else if (is_file($base . '.profile')) {
-        $found['profile'][] = $info->name;
+        $found['profile'][] = $name;
       }
       else {
-        $found['theme'][] = $info->name;
+        $found['theme'][] = $name;
       }
     }
     // Special case: find profiles for drupal < 7.x (no .info)
@@ -1770,12 +1811,13 @@ function drush_pm_extensions_in_project($project) {
   }
   // Modules and themes can only contain other extensions of the same type.
   elseif (in_array($project['project_type'], array('module', 'theme'))) {
-    // Find all of the .info files
     $found = array();
-    foreach (drush_scan_directory($project['project_install_location'], "/.*\.info$/", $nomask) as $filename => $info) {
-      $found[] = $info->name;
+    foreach (drush_scan_directory($project['project_install_location'], $mask, $nomask) as $filename => $info) {
+      // Extract extension name from filename.
+      $matches = array();
+      preg_match($mask, $info->basename, $matches);
+      $found[] = $matches[1];
     }
-    // Log results.
     // If there is only one module / theme in the project, only print out
     // the message if is different than the project name.
     if (count($found) == 1) {

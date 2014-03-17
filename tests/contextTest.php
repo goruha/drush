@@ -1,6 +1,6 @@
 <?php
 
-/*
+/**
 * @file
 *  Assure that context API behaves as designed. Mostly implicitly tested, but we
 *  do have some edges that need explicit testing.
@@ -68,7 +68,7 @@ EOD;
         ),
       ),
     );
-    $contents = $this->file_aliases($aliases);
+    $contents = unish_file_aliases($aliases);
     $return = file_put_contents($path, $contents);
   }
 
@@ -93,8 +93,7 @@ EOD;
       'uri' => $this->env
     );
     $this->drush('core-status', array('Drush configuration'), $options);
-    $output = trim($this->getOutput());
-    $loaded = explode(' ', $output);
+    $loaded = $this->getOutputFromJSON('drush-conf');
     $loaded = array_map(array(&$this, 'convert_path'), $loaded);
     $this->assertSame($this->written, $loaded);
   }
@@ -124,8 +123,7 @@ EOD;
     }
 
     $this->drush('core-status', array('Drush configuration'), array('pipe' => NULL));
-    $output = trim($this->getOutput());
-    $loaded = explode(' ', $output);
+    $loaded = $this->getOutputFromJSON('drush-conf');
     // Next 2 lines needed for Windows compatibility.
     $loaded = array_map(array(&$this, 'convert_path'), $loaded);
     $files = array_map(array(&$this, 'convert_path'), $files);

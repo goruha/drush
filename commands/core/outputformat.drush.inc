@@ -6,7 +6,7 @@
  */
 
 /**
- * Return selected output format engine
+ * @return drush_outputformat The selected output format engine
  */
 function drush_get_outputformat() {
   return drush_get_engine('outputformat');
@@ -23,6 +23,18 @@ function drush_set_default_outputformat($format, $metadata = array()) {
 }
 
 /**
+ * Given a command name or a command record, return the
+ * command formatter that is used to process that command's output.
+ */
+function drush_get_command_format_metadata($command, $metadata = array()) {
+  $commands = drush_get_commands();
+  if (!is_array($command) && array_key_exists($command, $commands)) {
+    $command = $commands[$command];
+  }
+  return drush_get_command_engine_config($command, 'outputformat', $metadata);
+}
+
+/**
  * Implementation of hook_drush_engine_type_info().
  */
 function outputformat_drush_engine_type_info() {
@@ -35,12 +47,22 @@ function outputformat_drush_engine_type_info() {
     'option' => 'format',
     'options' => array(
       'format' => array(
-        'description' => 'Select output format to use.',
+        'description' => 'Select output format.',
+        'example-value' => 'json',
       ),
       'fields' => array(
         'description' => 'Fields to output.',
         'example-value' => 'field1,field2',
         'value' => 'required',
+        'list' => TRUE,
+      ),
+      'list-separator' => array(
+        'description' => 'Specify how elements in a list should be separated. In lists of lists, this applies to the elements in the inner lists.',
+        'hidden' => TRUE,
+      ),
+      'line-separator' => array(
+        'description' => 'In nested lists of lists, specify how the outer lists ("lines") should be separated.',
+        'hidden' => TRUE,
       ),
     ),
     // Allow output formats to declare their
@@ -63,7 +85,7 @@ function outputformat_drush_engine_type_info() {
  * format-single:       A simple string.
  *
  * format-list:         An associative array where the key
- *                      is usualy the row label, and the value
+ *                      is usually the row label, and the value
  *                      is a simple string.  Some list formatters
  *                      render the label, and others (like
  *                      "list" and "csv") throw it away.
@@ -100,6 +122,7 @@ function outputformat_drush_engine_outputformat() {
   $engines['key-value'] = array(
     'description' => 'A formatted list of key-value pairs.',
     'engine-capabilities' => array('format-single', 'format-list', 'format-table'),
+    'hidden' => TRUE,
   );
   $engines['key-value-list'] = array(
     'engine-class' => 'list',
@@ -107,11 +130,11 @@ function outputformat_drush_engine_outputformat() {
     'description' => 'A list of formatted lists of key-value pairs.',
     'list-field-selection-control' => 1,
     'engine-capabilities' => array('format-table'),
+    'hidden' => TRUE,
   );
   $engines['json'] = array(
     'machine-parsable' => TRUE,
     'description' => 'Javascript Object Notation.',
-    'verbose-only' => TRUE,
     'topic-example' => $common_topic_example,
   );
   $engines['string'] = array(
@@ -129,28 +152,14 @@ function outputformat_drush_engine_outputformat() {
     'verbose-only' => TRUE,
     'topic-example' => $common_topic_example,
   );
-  $engines['ini'] = array(
-    'machine-parsable' => TRUE,
-    'description' => 'A list of key-value pairs, parsable by php parse_ini_file().',
-    'engine-capabilities' => array('format-list', 'format-table'),
-  );
-  $engines['ini-sections'] = array(
-    'machine-parsable' => TRUE,
-    'engine-class' => 'list',
-    'list-item-type' => 'ini',
-    'description' => 'A sectioned list of key-value pairs, parsable by php parse_ini_file().',
-    'engine-capabilities' => array('format-table'),
-  );
-  $engines['export'] = array(
+  $engines['var_export'] = array(
     'machine-parsable' => TRUE,
     'description' => 'An array in executable php format.',
-    'verbose-only' => TRUE,
     'topic-example' => $common_topic_example,
   );
   $engines['yaml'] = array(
     'machine-parsable' => TRUE,
     'description' => 'Yaml output format.',
-    'verbose-only' => TRUE,
     'topic-example' => $common_topic_example,
   );
   $engines['php'] = array(
@@ -162,7 +171,7 @@ function outputformat_drush_engine_outputformat() {
   $engines['config'] = array(
     'machine-parsable' => TRUE,
     'engine-class' => 'list',
-    'list-item-type' => 'export',
+    'list-item-type' => 'var_export',
     'description' => "A configuration file in executable php format. The variable name is \"config\", and the variable keys are taken from the output data array's keys.",
     'metadata' => array(
       'variable-name' => 'config',
@@ -179,15 +188,6 @@ function outputformat_drush_engine_outputformat() {
     'engine-capabilities' => array('format-list', 'format-table'),
     'topic-example' => array('a', 'b', 'c'),
   );
-  $engines['csv'] = array(
-    'machine-parsable' => TRUE,
-    'engine-class' => 'list',
-    'list-separator' => ',',
-    'list-item-type' => 'string',
-    'description' => 'A comma-separated list of values.',
-    'engine-capabilities' => array('format-list', 'format-table'),
-    'topic-example' => array('a', 'b', 'c'),
-  );
   $engines['nested-csv'] = array(
     'machine-parsable' => TRUE,
     'engine-class' => 'list',
@@ -199,7 +199,7 @@ function outputformat_drush_engine_outputformat() {
     'machine-parsable' => TRUE,
     'hidden' => TRUE,
   );
-  $engines['csv-list'] = array(
+  $engines['csv'] = array(
     'machine-parsable' => TRUE,
     'engine-class' => 'list',
     'list-item-type' => 'nested-csv',
@@ -221,7 +221,7 @@ function outputformat_drush_engine_outputformat() {
     'engine-capabilities' => array('format-table'),
     'verbose-only' => TRUE,
     'engine-class' => 'list',
-    'list-item-type' => 'export',
+    'list-item-type' => 'var_export',
     'metadata' => array(
       'label-template' => '!label: !value',
     ),
@@ -235,9 +235,8 @@ function outputformat_drush_engine_outputformat() {
  * Implements hook_drush_command_alter
  */
 function outputformat_drush_command_alter(&$command) {
-  // In --pipe mode, change the default format
-  // to the default pipe format, or to json, if
-  // no default pipe format is given.
+  // In --pipe mode, change the default format to the default pipe format, or
+  // to json, if no default pipe format is given.
   if (drush_get_context('DRUSH_PIPE') && (isset($command['engines']['outputformat']))) {
     $default_format = isset($command['engines']['outputformat']['pipe-format']) ? $command['engines']['outputformat']['pipe-format'] : 'json';
     $command['engines']['outputformat']['default'] = $default_format;
@@ -272,8 +271,9 @@ function outputformat_drush_help_alter(&$command) {
         }
       }
     }
+
     // If the command defines a default pipe format, then
-    // add '--pipe   Equivalent to --format=<default>'.
+    // add '--pipe   Equivalent to --format=<pipe-default>'.
     if (isset($outputformat['pipe-format'])) {
       if (isset($command['options']['pipe'])) {
         $command['options']['pipe'] .= ' ';
@@ -335,6 +335,9 @@ class drush_outputformat {
   function formatter_type() {
     return $this->engine;
   }
+  function is_list() {
+    return FALSE;
+  }
   function formatter_is_simple_list() {
     if (!isset($this->sub_engine)) {
       return false;
@@ -366,6 +369,9 @@ class drush_outputformat {
     $supported = $this->supported_data_types($metadata);
     return (count($supported) == 1) && ($supported[0] == 'format-single');
   }
+  /**
+   * Perform pre-processing and then format() the $input.
+   */
   function process($input, $metadata = array()) {
     $metadata += $this->engine_config;
     if (isset($metadata['private-fields']) && is_array($input)) {
@@ -376,14 +382,6 @@ class drush_outputformat {
         foreach ($metadata['private-fields'] as $private) {
           drush_unset_recursive($input, $private);
         }
-      }
-    }
-    if (isset($metadata['fields'])) {
-      if (isset($metadata['field-labels'])) {
-        $metadata['field-labels'] = drush_select_fields($metadata['field-labels'], $metadata['fields'], $metadata['strict']);
-      }
-      elseif (!empty($metadata['field-labels'])) {
-        $metadata['field-labels'] = array_combine($metadata['fields'], $metadata['fields']);
       }
     }
     if (isset($metadata[$this->selected_engine . '-metadata'])) {
@@ -401,6 +399,8 @@ class drush_outputformat {
     if ((!$machine_parsable) && is_bool($input)) {
       $input = $input ? 'TRUE' : 'FALSE';
     }
+
+    // Run $input through any filters that are specified for this formatter.
     if (isset($metadata[$formatter_type . '-filter'])) {
       $filters = $metadata[$formatter_type . '-filter'];
       if (!is_array($filters)) {

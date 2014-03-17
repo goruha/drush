@@ -1,7 +1,6 @@
 <?php
-// $Id$
 
-/*
+/**
  * @file
  *   Commands which are useful for unit tests.
  */
@@ -17,11 +16,12 @@ function unit_drush_command() {
   $items['unit-eval'] = array(
     'description' => 'Works like php-eval. Used for testing $command_specific context.',
     'bootstrap' => DRUSH_BOOTSTRAP_MAX,
-    'callback' => 'drush_core_php_eval', // Note - no invoke hooks.
+    'callback' => 'drush_core_php_eval',
   );
   $items['unit-invoke'] = array(
     'description' => 'Return an array indicating which invoke hooks got called.',
     'bootstrap' => DRUSH_BOOTSTRAP_NONE,
+    'callback' => 'drush_unit_invoke_primary',
   );
   $items['unit-batch'] = array(
     'description' => 'Run a batch process.',
@@ -52,7 +52,9 @@ function unit_drush_command() {
 function drush_unit_invoke_init() {unit_invoke_log(__FUNCTION__);}
 function drush_unit_invoke_validate() {unit_invoke_log(__FUNCTION__);}
 function drush_unit_pre_unit_invoke() {unit_invoke_log(__FUNCTION__);}
-function drush_unit_invoke() {unit_invoke_log(__FUNCTION__);}
+// Primary callback is not invoked when command specifies a 'callback'.
+// function drush_unit_invoke() {unit_invoke_log(__FUNCTION__);}
+function drush_unit_invoke_primary() {unit_invoke_log(__FUNCTION__);}
 function drush_unit_pre_unit_invoke_rollback() {unit_invoke_log(__FUNCTION__);}
 function drush_unit_post_unit_invoke_rollback() {unit_invoke_log(__FUNCTION__);}
 
@@ -72,7 +74,7 @@ function drush_unit_post_unit_invoke() {
   drush_set_error('');
 }
 
-/*
+/**
  * The final invoke hook. Emit the call history.
  * Cannot use 'exit' as it does not fire in rollback scenario.
  */
@@ -134,6 +136,11 @@ function drush_unit_return_options() {
   $all_option_values = array_merge(drush_get_context('cli'), drush_get_context('stdin'));
   foreach (drush_get_global_options() as $key => $info) {
     unset($all_option_values[$key]);
+  }
+  if (isset($all_option_values['log-message'])) {
+    drush_log($all_option_values['log-message'], 'warning');
+    drush_log("done", 'warning');
+    unset($all_option_values['log-message']);
   }
   return $all_option_values;
 }

@@ -1,6 +1,6 @@
 <?php
 
-/*
+/**
 * @file
 *  Assure that context API behaves as designed. Mostly implicitly tested, but we
 *  do have some edges that need explicit testing.
@@ -37,7 +37,7 @@ class commandSpecificCase extends Drush_CommandTestCase {
         '%files' => 'sites/default/files',
       ),
     );
-    $contents = $this->file_aliases($aliases);
+    $contents = unish_file_aliases($aliases);
     $return = file_put_contents($path, $contents);
   }
 

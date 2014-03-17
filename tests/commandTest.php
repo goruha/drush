@@ -10,7 +10,9 @@ class commandCase extends Drush_CommandTestCase {
       'drush_unit_invoke_init',
       'drush_unit_invoke_validate',
       'drush_unit_pre_unit_invoke',
-      'drush_unit_invoke',
+      'drush_unit_invoke_primary',
+      // Primary callback is not invoked when command specifies a 'callback'.
+      // 'drush_unit_invoke',
       'drush_unit_post_unit_invoke',
       'drush_unit_post_unit_invoke_rollback',
       'drush_unit_pre_unit_invoke_rollback',
@@ -21,11 +23,11 @@ class commandCase extends Drush_CommandTestCase {
       'include' => dirname(__FILE__),
     );
     $this->drush('unit-invoke', array(), $options, NULL, NULL, self::EXIT_ERROR);
-    $called = json_decode($this->getOutput());
+    $called = $this->getOutputFromJSON();
     $this->assertSame($expected, $called);
   }
 
-  /*
+  /**
    * Assert that minimum bootstrap phase is honored.
    *
    * Not testing dependency on a module since that requires an installed Drupal.
@@ -84,6 +86,7 @@ class commandCase extends Drush_CommandTestCase {
     $options = array(
       'root' => $root,
       'uri' => $uri,
+      'cache' => NULL,
     );
     $this->drush('pm-download', array('devel'), $options);
     $options += array(

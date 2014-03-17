@@ -32,13 +32,13 @@ function sitealias_drush_command() {
     ),
     'outputformat' => array(
       'default' => 'config',
-      'pipe-format' => 'export',
+      'pipe-format' => 'var_export',
       'variable-name' => 'aliases',
       'hide-empty-fields' => TRUE,
       'private-fields' => 'password',
-      'field-labels' => array('#id' => 'ID', 'root' => 'Root', 'uri' => 'URI', 'remote-host' => 'Host', 'remote-user' => 'User', 'remote-port' => 'Port', 'os' => 'OS', 'ssh-options' => 'SSH options', 'php' => 'PHP'),
-      'fields-default' => array('#id', 'root', 'uri', 'remote-host', 'remote-user'),
-      'field-mappings' => array('name' => '#name', 'id' => '#id'),
+      'field-labels' => array('#name' => 'Name', 'root' => 'Root', 'uri' => 'URI', 'remote-host' => 'Host', 'remote-user' => 'User', 'remote-port' => 'Port', 'os' => 'OS', 'ssh-options' => 'SSH options', 'php' => 'PHP'),
+      'fields-default' => array('#name', 'root', 'uri', 'remote-host', 'remote-user'),
+      'field-mappings' => array('name' => '#name'),
       'output-data-type' => 'format-table',
     ),
     'aliases' => array('sa'),
@@ -51,6 +51,7 @@ function sitealias_drush_command() {
   $items['site-set'] = array(
     'description' => 'Set a site alias to work on that will persist for the current session.',
     'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
+    'handle-remote-commands' => TRUE,
     'arguments' => array(
       'site' => 'Site specification to use, or "-" for previous site.',
     ),
@@ -65,6 +66,7 @@ function sitealias_drush_command() {
     'description' => 'Reset a persistently set site.',
     'bootstrap' => DRUSH_BOOTSTRAP_DRUSH,
     'handle-remote-commands' => TRUE,
+    'aliases' => array('unuse'),
   );
   return $items;
 }
@@ -76,9 +78,17 @@ function sitealias_drush_command() {
  *  Array of available site aliases.
  */
 function sitealias_sitealias_print_complete() {
-  $site_specs = array_keys(_drush_sitealias_all_list());
-  ksort($site_specs);
-  return array('values' => $site_specs);
+  return array('values' => array_keys(_drush_sitealias_all_list()));
+}
+
+/**
+ * Command argument complete callback.
+ *
+ * @return
+ *  Array of available site aliases.
+ */
+function sitealias_site_set_complete() {
+  return array('values' => array_keys(_drush_sitealias_all_list()));
 }
 
 /**
@@ -124,7 +134,7 @@ function _drush_sitealias_all_list() {
 }
 
 /**
- * Return the list of sites (aliases or local) that the
+ * Return the list of site aliases (remote or local) that the
  * user specified on the command line.  If none were specified,
  * then all are returned.
  */
@@ -135,11 +145,14 @@ function _drush_sitealias_user_specified_list() {
 
   // Iterate over the arguments and convert them to alias records
   if (!empty($specifications)) {
-    $site_list = drush_sitealias_resolve_sitespecs($specifications);
+    list($site_list, $not_found) = drush_sitealias_resolve_sitespecs($specifications);
+    if (!empty($not_found)) {
+      return drush_set_error('DRUSH_ALIAS_NOT_FOUND', dt("Not found: @list", array("@list" => implode(', ', $not_found))));
+    }
   }
   // If the user provided no args, then we will return everything.
   else {
-    drush_set_default_outputformat('list', array('field-labels' => array('#id' => 'ID')));
+    drush_set_default_outputformat('list');
     $site_list = _drush_sitealias_all_list();
 
     // Filter out the hidden items
@@ -150,7 +163,7 @@ function _drush_sitealias_user_specified_list() {
     }
   }
 
-  // Filter out the local sites
+  // Filter for only local sites if specified.
   if (drush_get_option('local', FALSE)) {
     foreach ($site_list as $site_name => $one_site) {
       if ( (array_key_exists('remote-site', $one_site)) ||
@@ -165,16 +178,16 @@ function _drush_sitealias_user_specified_list() {
 }
 
 /**
- * Print out the specified site aliases using the format
+ * Print out the specified site aliases (or else all) using the format
  * specified.
  */
 function drush_sitealias_print() {
-  // Call bootstrap max in case we need it (defer or otherwise optimize this?)
-  // drush_bootstrap_max();
-
   $site_list = _drush_sitealias_user_specified_list();
+  if ($site_list === FALSE) {
+    return FALSE;
+  }
   ksort($site_list);
-  $with_db = (drush_get_option('with-db') != null) || (drush_get_option('with-db-url') != null);
+  $with_db = (drush_get_option('with-db') != NULL) || (drush_get_option('with-db-url') != NULL);
 
   $site_specs = array();
   foreach ($site_list as $site => $alias_record) {
@@ -311,6 +324,16 @@ function _drush_sitealias_site_dir_to_uri($site_dir) {
   $uri = preg_replace("/([0-9]+)_([0-9]+)_([0-9]+)_([0-9]+)/", "$1.$2.$3.$4", $site_dir);
 
   return 'http://' . $uri;
+}
+
+/**
+ * Validation callback for drush site-set.
+ */
+function drush_sitealias_site_set_validate() {
+  if (!function_exists('posix_getppid')) {
+    $args = array('!command' => 'site-set', '!dependencies' => 'POSIX');
+    return drush_set_error('DRUSH_COMMAND_PHP_DEPENDENCY_ERROR', dt('Command !command needs the following PHP extensions installed/enabled to run: !dependencies.', $args));
+  }
 }
 
 /**

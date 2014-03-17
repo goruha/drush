@@ -58,6 +58,56 @@ class makeMakefileCase extends Drush_CommandTestCase {
     $this->runMakefileTest('no-patch-txt');
   }
 
+  /**
+   * Test no-core and working-copy in options array.
+   */
+  function testMakeOptionsArray() {
+    // Use the goptions-array.make file.
+    $config = $this->getMakefile('options-array');
+
+    $makefile_path = dirname(__FILE__) . '/makefiles';
+    $makefile = $makefile_path . '/' . $config['makefile'];
+    $install_directory = UNISH_SANDBOX . '/options-array';
+    $this->drush('make', array($makefile, $install_directory));
+
+    // Test cck_signup .git/HEAD file.
+    $this->assertFileExists($install_directory . '/sites/all/modules/cck_signup/.git/HEAD');
+    $contents = file_get_contents($install_directory . '/sites/all/modules/cck_signup/.git/HEAD');
+    $this->assertContains('2fe932c', $contents);
+
+    // Test context_admin .git/HEAD file.
+    $this->assertFileExists($install_directory . '/sites/all/modules/context_admin/.git/HEAD');
+    $contents = file_get_contents($install_directory . '/sites/all/modules/context_admin/.git/HEAD');
+    $this->assertContains('eb9f05e', $contents);
+  }
+
+  /**
+   * Test per project working-copy option.
+   */
+  function testMakeOptionsProject() {
+    // Use the options-project.make file.
+    $config = $this->getMakefile('options-project');
+
+    $makefile_path = dirname(__FILE__) . '/makefiles';
+    $options = array('no-core' => NULL);
+    $makefile = $makefile_path . '/' . $config['makefile'];
+    $install_directory = UNISH_SANDBOX . '/options-project';
+    $this->drush('make', array($makefile, $install_directory), $options);
+
+    // Test context_admin .git/HEAD file.
+    $this->assertFileExists($install_directory . '/sites/all/modules/context_admin/.git/HEAD');
+    $contents = file_get_contents($install_directory . '/sites/all/modules/context_admin/.git/HEAD');
+    $this->assertContains('eb9f05e', $contents);
+
+    // Test cck_signup .git/HEAD file does not exist.
+    $this->assertFileNotExists($install_directory . '/sites/all/modules/cck_signup/.git/HEAD');
+
+    // Test caption_filter .git/HEAD file.
+    $this->assertFileExists($install_directory . '/sites/all/modules/contrib/caption_filter/.git/HEAD');
+    $contents = file_get_contents($install_directory . '/sites/all/modules/contrib//caption_filter/.git/HEAD');
+    $this->assertContains('c9794cf', $contents);
+  }
+
   function testMakePatch() {
     $this->runMakefileTest('patch');
   }
@@ -349,6 +399,13 @@ class makeMakefileCase extends Drush_CommandTestCase {
     $this->assertFileExists(UNISH_SANDBOX . '/sites/all/modules/contrib/cck_signup/README.txt');
   }
 
+  /**
+   * Test that a distribution can be used as a "core" project.
+   */
+  function testMakeUseDistributionAsCore() {
+    $this->runMakefileTest('use-distribution-as-core');
+  }
+
   function getMakefile($key) {
     static $tests = array(
       'get' => array(
@@ -444,7 +501,7 @@ class makeMakefileCase extends Drush_CommandTestCase {
         'name'     => 'File extraction',
         'makefile' => 'file.make',
         'build'    => TRUE,
-        'md5' => 'c7cab3930f644961a576d78769498172',
+        'md5' => '4e9883d6f9f6572af287635689c2545d',
         'options'  => array('no-core' => NULL),
       ),
       'defaults' => array(
@@ -539,6 +596,25 @@ class makeMakefileCase extends Drush_CommandTestCase {
         'build'    => TRUE,
         'md5' => '7c10e6fc65728a77a2b0aed4ec2a29cd',
         'options'  => array('no-core' => NULL, 'libraries' => 'drush_make,token'),
+      ),
+      'use-distribution-as-core' => array(
+        'name'     => 'Use distribution as core',
+        'makefile' => 'use-distribution-as-core.make',
+        'build'    => TRUE,
+        'md5' => '643a603025a20d498eb583a1e7970bad',
+        'options'  => array(),
+      ),
+      'options-array' => array(
+        'name'     => 'Test global options array',
+        'makefile' => 'options-array.make',
+        'build'    => TRUE,
+        'options'  => array(),
+      ),
+      'options-project' => array(
+        'name'     => 'Test per-project options array',
+        'makefile' => 'options-project.make',
+        'build'    => TRUE,
+        'options'  => array(),
       ),
     );
     return $tests[$key];

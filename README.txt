@@ -15,16 +15,15 @@ and DB migrations, and misc utilities like run cron or clear cache.
 REQUIREMENTS
 ============
 
-* To use Drush from the command line, you'll need a CLI-mode capable PHP binary
-  version 5.3 or greater.
+* To use Drush, you'll need a command line PHP version 5.3+.
 
 * Drush commands that work with git require git 1.7 or greater.
 
-* Drush is designed for a Unix-like OS (Linux, OS X)
+* Drush works best on a Unix-like OS (Linux, OS X)
 
 * Most Drush commands run on Windows.  See INSTALLING DRUSH ON WINDOWS, below.
 
-* Drush works with Drupal 6, Drupal 7, and usually Drupal 8.
+* Drush 6 works with Drupal 6 or Drupal 7.
 
 
 INSTALLATION
@@ -85,7 +84,7 @@ below.
 6. Optional. See examples/example.bashrc for instructions on how to add some
    useful shell aliases that provides even tighter integration between
    drush and bash. You may source this file directly into your shell by adding to
-   your .bashrc (rr equivalent): source /path/to/drush/examples/example.bashrc
+   your .bashrc (or equivalent): source /path/to/drush/examples/example.bashrc
 
 7. Optional. If you didn't source it in Step 6 above, see top of
    drush.complete.sh file for instructions adding bash completion for drush
@@ -207,13 +206,19 @@ be passed to php on the command line when Drush is executed.
 
 Drush requires a fairly unrestricted php environment to run in.  In particular,
 you should insure that safe_mode, open_basedir, disable_functions and
-disable_classes are empty.
+disable_classes are empty.  If you are using php 5.3.x, you may also need to
+add the following definitions to your php.ini file:
+
+magic_quotes_gpc = Off
+magic_quotes_runtime = Off
+magic_quotes_sybase = Off
+
 
 INSTALLING DRUSH ON WINDOWS:
 ----------------------------
 
-Windows support has improved, but is still lagging. Consider using on
-Linux/Unix/OSX using Virtualbox or other virtual machine.
+Windows support has improved, but is still lagging. For full functionality,
+consider using on Linux/Unix/OSX using Virtualbox or other virtual machine.
 
 There is a Windows msi installer for drush available at:
 
@@ -227,6 +232,16 @@ Whenever the documentation or the help text refers to 'drush [option]
 
 Additional Drush Windows installation documentation can be found at
 http://drupal.org/node/594744.
+
+Most Drush commands will run in a Windows CMD shell or PowerShell, but the
+Git Bash shell provided by the 'Git for Windows' installation is the preferred
+shell in which to run Drush commands. For more information on "Git for Windows'
+visit http://msysgit.github.com/.
+
+When creating aliases for Windows remote machines, pay particular attention to
+information presented in the example.aliases.drushrc.php file, especially when
+setting values for 'remote-host' and 'os', as these are very important when
+running Drush rsync and Drush sql-sync commands.
 
 
 USAGE
@@ -246,7 +261,7 @@ For even more documentation, use the 'topic' command:
   $ drush topic
 
 For a full list of Drush commands and documentation by version, visit
-http://drush.ws.
+http://www.drush.org.
 
 Many commands support a --pipe option which returns machine readable output.
 For example, return a list of enabled modules:
@@ -350,6 +365,10 @@ FAQ
   A: Some people pronounce the dru with a long u like Drupal. Fidelity points
      go to them, but they are in the minority. Most pronounce Drush so that it
      rhymes with hush, rush, flush, etc. This is the preferred pronunciation.
+
+  Q: Does Drush have unit tests?
+  A: Drush has an excellent suite of unit tests. See the README.txt file in the /tests subdirectory for
+     more information.
 
 
 CREDITS

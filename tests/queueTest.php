@@ -1,6 +1,6 @@
 <?php
 
-/*
+/**
  * @file
  *   Tests for queue commands.
  *
@@ -9,6 +9,10 @@
 class QueueCase extends Drush_CommandTestCase {
 
   function testQueue() {
+    if (UNISH_DRUPAL_MAJOR_VERSION == 6) {
+      $this->markTestSkipped("Queue API not available in Drupal 6.");
+    }
+
     $sites = $this->setUpDrupal(1, TRUE);
     $options = array(
       'yes' => NULL,
@@ -17,7 +21,7 @@ class QueueCase extends Drush_CommandTestCase {
     );
 
     // Enable aggregator since it declares a queue.
-    $this->drush('en', array('aggregator'), $options);
+    $this->drush('pm-enable', array('aggregator'), $options);
 
     $this->drush('queue-list', array(), $options);
     $output = $this->getOutput();

@@ -1,10 +1,13 @@
 <?php
 
-/*
+/**
  * @file
- *   Tests for archive-dump
+ *   Tests for archive-dump and archive-restore
  * @group commands
  */
+
+require_once dirname(__FILE__) . '/../includes/filesystem.inc';
+
 class archiveDumpCase extends Drush_CommandTestCase {
   /**
    * archive-dump behaves slightly different when archiving a site installed
@@ -17,7 +20,7 @@ class archiveDumpCase extends Drush_CommandTestCase {
    * Install a site and dump it to an archive.
    */
   private function archiveDump($no_core) {
-    $this->fetchInstallDrupal(self::uri, TRUE, UNISH_DRUPAL_MAJOR_VERSION, 'testing');
+    $this->fetchInstallDrupal(self::uri, TRUE, UNISH_DRUPAL_MAJOR_VERSION);
     $root = $this->webroot();
     $dump_dest = UNISH_SANDBOX . DIRECTORY_SEPARATOR . 'dump.tar.gz';
     $options = array(
@@ -59,9 +62,8 @@ class archiveDumpCase extends Drush_CommandTestCase {
     $exec = sprintf('file %s', $dump_dest);
     $this->execute($exec);
     $output = $this->getOutput();
-    $sep = self::is_windows() ? ';' : ':';
-    $expected = $dump_dest . "$sep gzip compressed data, from";
-    $this->assertStringStartsWith($expected, $output);
+    $expected = '%sgzip compressed data%s';
+    $this->assertStringMatchesFormat($expected, $output);
 
     // Untar the archive and make sure it looks right.
     $untar_dest = $this->unTar($dump_dest);
@@ -84,7 +86,6 @@ class archiveDumpCase extends Drush_CommandTestCase {
    * @depends testArchiveDump
    */
    public function testArchiveRestore($dump_dest) {
-    require_once dirname(__FILE__) . '/../includes/filesystem.inc';
     $restore_dest = UNISH_SANDBOX . DIRECTORY_SEPARATOR . 'restore';
     $options = array(
       'yes' => NULL,
@@ -119,7 +120,6 @@ class archiveDumpCase extends Drush_CommandTestCase {
     $root = $this->webroot();
     $original_codebase = drush_dir_md5($root);
     unish_file_delete_recursive($root . '/sites/' . self::uri);
-
     $options = array(
       'yes' => NULL,
       'destination' => $root,

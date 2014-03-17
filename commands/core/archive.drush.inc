@@ -44,7 +44,10 @@ function archive_drush_command() {
     'options' => array(
       'destination' => 'Specify where the Drupal site should be expanded, including the docroot. Defaults to the current working directory.',
       'db-prefix' => 'An optional table prefix to use during restore.',
-      'db-url' => 'A Drupal 6 style database URL indicating the target for database restore. If not provided, the archived settings.php is used.',
+      'db-url' => array(
+        'description' => 'A Drupal 6 style database URL indicating the target for database restore. If not provided, the archived settings.php is used.',
+        'example-value' => 'mysql://root:pass@host/db',
+      ),
       'db-su' => 'Account to use when creating the new database. Optional.',
       'db-su-pw' => 'Password for the "db-su" account. Optional.',
       'overwrite' => 'Allow drush to overwrite any files in the destination.',
@@ -70,7 +73,10 @@ function drush_archive_dump($sites_subdirs = '@self') {
   $tar = drush_get_tar_executable();
 
   $sites = array();
-  $aliases = drush_sitealias_resolve_sitespecs(explode(',', $sites_subdirs));
+  list($aliases, $not_found) = drush_sitealias_resolve_sitespecs(explode(',', $sites_subdirs));
+  if (!empty($not_found)) {
+    drush_log(dt("Some site subdirectories are not valid Drupal sites: @list", array("@list" => implode(', ', $not_found))), 'warning');
+  }
   foreach ($aliases as $key => $alias) {
     $sites[$key] = $alias;
     if (($db_record = sitealias_get_databases_from_record($alias))) {
@@ -186,7 +192,7 @@ function drush_archive_dump($sites_subdirs = '@self') {
     // Add sites/all to the same archive.
     drush_shell_cd_and_exec($workdir, "$tar {$tar_extra_options} {$dereference}-rf %s %s", $destination, "{$docroot}/sites/all");
     // Add special files in sites/ to the archive.
-    $files_to_add = array('sites/README.txt', 'sites/sites.php', 'sites/example.sites.php', 'sites/default/default.settings.php');
+    $files_to_add = array('sites/README.txt', 'sites/sites.php', 'sites/example.sites.php');
     foreach ($files_to_add as $file_to_add) {
       if (file_exists($file_to_add)) {
         drush_shell_cd_and_exec($workdir, "$tar {$dereference}-rf %s %s", $destination, $docroot . '/' . $file_to_add);

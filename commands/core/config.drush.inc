@@ -45,7 +45,7 @@ function config_drush_command() {
     ),
     'outputformat' => array(
       'default' => 'yaml',
-      'pipe-format' => 'export',
+      'pipe-format' => 'var_export',
     ),
     'aliases' => array('cget'),
     'core' => array('8+'),
@@ -99,7 +99,7 @@ function config_drush_command() {
     ),
     'outputformat' => array(
       'default' => 'list',
-      'pipe-format' => 'export',
+      'pipe-format' => 'var_export',
       'output-data-type' => 'format-list',
     ),
   );
@@ -391,28 +391,28 @@ function _drush_print_config_changes_table(array $config_changes) {
   drush_print_table($rows, TRUE);
 }
 
-/*
+/**
  * Command argument complete callback.
  */
 function drush_config_get_complete() {
   return _drush_config_complete();
 }
 
-/*
+/**
  * Command argument complete callback.
  */
 function drush_config_set_complete() {
   return _drush_config_complete();
 }
 
-/*
+/**
  * Command argument complete callback.
  */
 function drush_config_view_complete() {
   return _drush_config_complete();
 }
 
-/*
+/**
  * Command argument complete callback.
  */
 function drush_config_edit_complete() {

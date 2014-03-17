@@ -7,7 +7,7 @@
   *   @todo test security-only once one of these modules or core gets a security release.
   */
 
-/*
+/**
  *  @group slow
  *  @group pm
  */
@@ -25,7 +25,7 @@ class pmUpdateCode extends Drush_CommandTestCase {
       'quiet' => NULL,
       'cache' => NULL,
       'skip' => NULL, // No FirePHP
-      'invoke' => NULL, // invoke from script: do not verify options
+      'strict' => 0, // invoke from script: do not verify options
     );
     $this->drush('pm-download', array('devel-7.x-1.0-rc1,webform-7.x-3.4-beta1'), $options);
     $this->drush('pm-enable', array('menu', 'devel', 'webform'), $options);

@@ -3,7 +3,7 @@ COMMANDS
 pm-download: GOOD.
   need test for `pm-download --select` (hard to test; depends on state of project releases on d.o.)
 pm-updatecode: GOOD.
-pm-update: GOOD. Implicitly tested by pm-updatecode and updatedb.
+pm-update: FAIR. Implicitly tested by pm-updatecode but updatedb not yet tested.
 pm-releasenotes
 pm-releases
 pm-enable: GOOD. testEnDisUnList().
@@ -17,15 +17,15 @@ package-hander:
 
 sql-cli:
 sql-connect:
-sql-query: FAIR. Implicit by site-install
-sql-dump: FAIR. Implicitly tested by sqlSyncTest.
+sql-query: FAIR. Implicit by site-install, sql-sync
+sql-dump: GOOD. tested by sqlDumpTest.
 sql-sync: GOOD. testLocalSqlSync().
   need test: %dump, %dump-dir, --dump, --dump-dir, --source-dump, --target-dump, --source-dump-dir and --target-dump-dir and permutations of same used together.
 sql-drop: FAIR. Implicit by site-install
-sql-sanitize:
+sql-sanitize: FAIR. Implicit by testLocalSqlSync()
 
 
-updatedb: (Used to be implicitly tested siteUpgradeTest).
+updatedb: NONE. Used to be implicitly tested by siteUpgradeTest.
 archive-dump: GOOD
 archive-restore: GOOD. Has own test and implicitly tested by environment cache in Unish framework.
 help
@@ -73,7 +73,7 @@ complete: GOOD
 context: FAIR. Many functions implicitly tested. Option merging (config, include, alias-path) not tested.
 drush: NONE.
 environment
-sitealias. FAIR. Explicit test for alias lists. Single aliases implicitly tested by contextTest.
+sitealias. FAIR. Explicit test for alias lists. Single aliases implicitly tested by contextTest.  Option propagation tested by backendTest.  Option recovery for @self alias tested by sqlDumpTest.
 dbtng: Good. Implicit by variable-*.
 drupal
 exec: GOOD: Implicitly tested all over.
